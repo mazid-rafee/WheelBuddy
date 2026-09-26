@@ -1,0 +1,13 @@
+# Start the crime prediction server (port 8000)
+conda activate dmd
+cd /Users/zaimazarnaz/Desktop/IOSApps/WheelBuddy/AIPackages/CrimePredictor
+python -m uvicorn api.app:app --host 0.0.0.0 --port 8000
+
+# Start the drowsiness detection server (port 8001) — use a second terminal
+conda activate dmd
+cd /Users/zaimazarnaz/Desktop/IOSApps/WheelBuddy/AIPackages/DrowsinessDetection
+python -m uvicorn api.app:app --host 0.0.0.0 --port 8001
+
+# On wifi change, get current server IP using:
+ipconfig getifaddr en0
+# Then paste the IP in the WheelBuddy.xcconfig file

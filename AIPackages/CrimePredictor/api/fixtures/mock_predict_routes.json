@@ -1,0 +1,17 @@
+{
+  "request_id": "11111111-1111-1111-1111-111111111111",
+  "routes": [
+    {
+      "route_id": "route_0",
+      "departure_time_utc": "2026-09-20T00:35:00Z",
+      "duration_seconds": 600,
+      "steps": [
+        {
+          "encoded_polyline": "usfyDdersQGEGC",
+          "distance_meters": 20,
+          "static_duration_seconds": 600
+        }
+      ]
+    }
+  ]
+}

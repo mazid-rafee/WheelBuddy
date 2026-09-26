@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CRIME_API_BASE_URL</key>
+	<string>$(CRIME_API_BASE_URL)</string>
+	<key>DROWSINESS_API_BASE_URL</key>
+	<string>$(DROWSINESS_API_BASE_URL)</string>
+	<key>DROWSINESS_API_KEY</key>
+	<string>$(DROWSINESS_API_KEY)</string>
+	<key>GMSApiKey</key>
+	<string>$(MAPS_API_KEY)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>RoutesAPIKey</key>
+	<string>$(ROUTES_API_KEY)</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+</dict>
+</plist>

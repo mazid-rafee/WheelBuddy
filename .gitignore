@@ -1,0 +1,78 @@
+# --- Secrets / local config (keep *.example.* tracked) ---
+Secrets.xcconfig
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# --- Xcode user-specific / build products ---
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+*.mode1v3
+*.mode2v3
+*.pbxuser
+!default.pbxuser
+*.perspectivev3
+!default.perspectivev3
+
+# --- Swift Package Manager / dependency tooling ---
+.build/
+Carthage/Build/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# --- Python: virtualenvs, caches, bytecode ---
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg
+pip-wheel-metadata/
+
+# --- Generated model checkpoints / training outputs (not CoreML app bundles) ---
+# Keep WheelBuddy/ML/*.mlpackage tracked (weight.bin via Git LFS).
+AIPackages/CrimePredictor/src/saved_weights/
+AIPackages/CrimePredictor/src/outputs/
+AIPackages/DrowsinessDetection/saved_weights/
+**/runs/
+**/checkpoints/
+**/wandb/
+*.ckpt
+*.safetensors

@@ -1,0 +1,31 @@
+{
+  "schema_version": "drowsiness_feature_schema_v3",
+  "feature_names": [
+    "face_detected",
+    "yaw",
+    "pitch",
+    "roll",
+    "left_eye_valid",
+    "right_eye_valid",
+    "left_eye_aspect_ratio",
+    "right_eye_aspect_ratio",
+    "left_pupil_rel_x",
+    "left_pupil_rel_y",
+    "right_pupil_rel_x",
+    "right_pupil_rel_y"
+  ],
+  "values": [
+    1.0,
+    0.12,
+    -0.05,
+    0.02,
+    1.0,
+    1.0,
+    0.7999999999999998,
+    0.7999999999999998,
+    0.5,
+    0.5000000000000007,
+    0.49999999999999944,
+    0.5000000000000007
+  ]
+}
