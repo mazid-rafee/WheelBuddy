@@ -1,0 +1,113 @@
+{
+  "checkpoint": "/home/z/zaimazarnaz/research1/DriveSensAI/DriveSensAI/AIPackages/DrowsinessDetection/saved_weights/best_accuracy_v2.pt",
+  "best_val_loss": 0.2778199100772891,
+  "best_val_accuracy": 0.900026798248291,
+  "best_val_macro_f1": 0.5391047596931458,
+  "class_to_idx": {
+    "closed": 0,
+    "open": 1,
+    "undefined": 2
+  },
+  "confusion_matrix": [
+    [
+      1161,
+      330,
+      0
+    ],
+    [
+      775,
+      8913,
+      6
+    ],
+    [
+      8,
+      0,
+      0
+    ]
+  ],
+  "per_class": {
+    "closed": {
+      "precision": 0.5972222089767456,
+      "recall": 0.7786720395088196,
+      "f1": 0.6759824752807617,
+      "support": 1491
+    },
+    "open": {
+      "precision": 0.9642972946166992,
+      "recall": 0.9194347262382507,
+      "f1": 0.9413317441940308,
+      "support": 9694
+    },
+    "undefined": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 8
+    }
+  },
+  "sampling_config": {
+    "closed_sample_fraction": 0.3,
+    "sampler_enabled": true,
+    "sampler_target_distribution": {
+      "closed": 0.2991909678198394,
+      "open": 0.6981122582462919,
+      "undefined": 0.002696773933868663
+    },
+    "closed_augmentation": true,
+    "augmentation_seed": 42,
+    "use_class_weights": false,
+    "loss_mode": "unweighted_ce_with_oversampling",
+    "epoch1_sampled_class_counts": {
+      "closed": 14897,
+      "open": 34664,
+      "undefined": 128
+    },
+    "epoch1_sampled_class_fractions": {
+      "closed": 0.2998047857674737,
+      "open": 0.6976191913703235,
+      "undefined": 0.0025760228622029023
+    }
+  },
+  "augmentation_config": {
+    "morphology_p": 0.7,
+    "morphology_base_low": 0.9,
+    "morphology_base_high": 1.1,
+    "morphology_asym_low": 0.97,
+    "morphology_asym_high": 1.03,
+    "noise_p": 0.5,
+    "noise_rho": 0.85,
+    "pose_noise_std_fraction": 0.02,
+    "eye_noise_std_fraction": 0.015,
+    "pupil_noise_std_fraction": 0.01,
+    "bias_p": 0.5,
+    "bias_std_fraction": 0.03,
+    "paired_eye_residual_fraction": 0.25,
+    "pupil_jitter_p": 0.3,
+    "pupil_common_std_fraction": 0.015,
+    "pupil_residual_std_fraction": 0.005,
+    "dropout_p": 0.03,
+    "dropout_min_frames": 1,
+    "dropout_max_frames": 3,
+    "percentile_low": 0.5,
+    "percentile_high": 99.5,
+    "percentile_margin": 0.05,
+    "dropout_enabled": true,
+    "pupil_jitter_enabled": true,
+    "left_morphology_features": [
+      "left_eye_aspect_ratio",
+      "left_eyelid_gap_ratio"
+    ],
+    "right_morphology_features": [
+      "right_eye_aspect_ratio",
+      "right_eyelid_gap_ratio"
+    ],
+    "left_pupil_features": [
+      "left_pupil_rel_x",
+      "left_pupil_rel_y"
+    ],
+    "right_pupil_features": [
+      "right_pupil_rel_x",
+      "right_pupil_rel_y"
+    ]
+  }
+}

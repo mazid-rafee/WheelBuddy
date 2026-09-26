@@ -68,9 +68,7 @@ pip-wheel-metadata/
 
 # --- Generated model checkpoints / training outputs (not CoreML app bundles) ---
 # Keep WheelBuddy/ML/*.mlpackage tracked (weight.bin via Git LFS).
-AIPackages/CrimePredictor/src/saved_weights/
 AIPackages/CrimePredictor/src/outputs/
-AIPackages/DrowsinessDetection/saved_weights/
 **/runs/
 **/checkpoints/
 **/wandb/
