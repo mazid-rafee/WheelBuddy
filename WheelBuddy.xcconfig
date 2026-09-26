@@ -6,12 +6,12 @@
 // with Uvicorn bound to --host 0.0.0.0 on the same Wi-Fi network.
 //
 // xcconfig URL escaping: insert an empty $( ) so "//" is preserved.
-CRIME_API_BASE_URL[sdk=iphonesimulator*] = http:/$()/127.0.0.1:8000
-CRIME_API_BASE_URL[sdk=iphoneos*] = http:/$()/10.108.254.86:8000
+CRIME_API_BASE_URL[sdk=iphonesimulator*] = http:/$()/127.0.0.1:8000 
+CRIME_API_BASE_URL[sdk=iphoneos*] = http:/$()/192.168.1.217:8000
 
 // Local DrowsinessDetection FastAPI base URL (port 8001).
 DROWSINESS_API_BASE_URL[sdk=iphonesimulator*] = http:/$()/127.0.0.1:8001
-DROWSINESS_API_BASE_URL[sdk=iphoneos*] = http:/$()/10.108.254.86:8001
+DROWSINESS_API_BASE_URL[sdk=iphoneos*] = http:/$()/192.168.1.217:8001
 
 // Optional X-API-Key: set DROWSINESS_API_KEY in Secrets.xcconfig (do not assign
 // an empty value here — it would overwrite Secrets after #include).

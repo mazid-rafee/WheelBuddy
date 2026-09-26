@@ -35,6 +35,8 @@ struct DriveView: View {
     @State private var speedingState: SpeedingState = .unavailable
     /// Raw Navigation SDK speeding fraction; `nil` outside guidance / after reset.
     @State private var percentageAboveLimit: CGFloat? = nil
+    /// Last limit inferred from Nav SDK + GPS; shown when live estimate is unavailable.
+    @State private var lastReliableSpeedLimitMPH: Int?
 
     #if DEBUG
     @State private var showLaneDebugOverlay = false
@@ -147,12 +149,15 @@ struct DriveView: View {
         }
         .onChange(of: speedMonitor.speedMPH) { _, _ in
             syncLaneSpeedGate()
+            syncLastReliableSpeedLimit()
             logOverLimitIfNeeded()
         }
         .onChange(of: speedMonitor.hasReliableSpeed) { _, _ in
             syncLaneSpeedGate()
+            syncLastReliableSpeedLimit()
         }
         .onChange(of: percentageAboveLimit) { _, _ in
+            syncLastReliableSpeedLimit()
             logOverLimitIfNeeded()
         }
     }
@@ -300,15 +305,33 @@ struct DriveView: View {
         return "\(Int(mph.rounded()))"
     }
 
-    /// The percentage callback cannot reveal the limit while the driver is at/below it.
     private var speedLimitDisplayText: String {
+        guard let mph = displayedSpeedLimitMPH else { return "--" }
+        return "\(mph)"
+    }
+
+    /// Live Nav estimate when speeding; otherwise the last cached limit from this session.
+    private var displayedSpeedLimitMPH: Int? {
+        if let fresh = estimatedSpeedLimitMPHFromNavigation {
+            return fresh
+        }
+        return lastReliableSpeedLimitMPH
+    }
+
+    /// Inferred from GPS speed and Navigation SDK overspeed fraction (only while above limit).
+    private var estimatedSpeedLimitMPHFromNavigation: Int? {
         guard speedMonitor.hasReliableSpeed,
               let mph = speedMonitor.speedMPH,
               let percentage = percentageAboveLimit,
-              percentage > 0 else { return "--" }
+              percentage > 0 else { return nil }
         let estimatedLimit = mph / (1.0 + Double(percentage))
-        let roundedLimit = (estimatedLimit / 5.0).rounded() * 5.0
-        return "\(Int(roundedLimit))"
+        let roundedLimit = Int((estimatedLimit / 5.0).rounded() * 5.0)
+        return roundedLimit > 0 ? roundedLimit : nil
+    }
+
+    private func syncLastReliableSpeedLimit() {
+        guard let fresh = estimatedSpeedLimitMPHFromNavigation else { return }
+        lastReliableSpeedLimitMPH = fresh
     }
 
     /// Whole MPH over the posted limit from Nav SDK percentage + GPS speed.
@@ -351,9 +374,12 @@ struct DriveView: View {
         } else {
             speedPart = "Speed unavailable"
         }
-        let limitPart = speedLimitDisplayText == "--"
-            ? "speed limit unavailable"
-            : "speed limit \(speedLimitDisplayText) miles per hour"
+        let limitPart: String
+        if let limit = displayedSpeedLimitMPH {
+            limitPart = "speed limit \(limit) miles per hour"
+        } else {
+            limitPart = "speed limit unavailable"
+        }
         return "\(speedPart), \(limitPart)"
     }
 
@@ -596,6 +622,7 @@ struct DriveView: View {
         speedMonitor.stop()
         speedingState = .unavailable
         percentageAboveLimit = nil
+        lastReliableSpeedLimitMPH = nil
     }
 
     private func startMultiCamIfNeeded() {
