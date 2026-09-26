@@ -255,7 +255,7 @@ struct DriveView: View {
 
     private var speedColumn: some View {
         VStack(spacing: 4) {
-            Text("SPEED / LIMIT · MPH")
+            Text("SPEED / LIMIT")
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.4)
                 .foregroundStyle(.secondary)
@@ -306,7 +306,9 @@ struct DriveView: View {
               let mph = speedMonitor.speedMPH,
               let percentage = percentageAboveLimit,
               percentage > 0 else { return "--" }
-        return "\(Int((mph / (1.0 + Double(percentage))).rounded()))"
+        let estimatedLimit = mph / (1.0 + Double(percentage))
+        let roundedLimit = (estimatedLimit / 5.0).rounded() * 5.0
+        return "\(Int(roundedLimit))"
     }
 
     /// Whole MPH over the posted limit from Nav SDK percentage + GPS speed.

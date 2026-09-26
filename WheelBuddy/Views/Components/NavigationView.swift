@@ -1289,6 +1289,7 @@ private struct GoogleMapView: UIViewRepresentable {
                 notifyFailed("Couldn't create a navigator.")
                 return
             }
+            navigator.voiceGuidance = .silent
 
             if !didRegisterNavigatorListener {
                 navigator.add(self)
