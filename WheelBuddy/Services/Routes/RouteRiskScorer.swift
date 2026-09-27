@@ -34,6 +34,8 @@ enum RouteSafetyStyle {
     /// OOV fraction above this → route has insufficient safety information.
     static let insufficientOOVFractionThreshold = 0.97
 
+    // MARK: Helpers
+
     static func baseColor(for tier: RouteSafetyTier) -> UIColor {
         switch tier {
         case .safest: return safestColor
@@ -64,9 +66,16 @@ enum RouteSafetyStyle {
 /// Route risk = sum of adjusted per-cell risks (unique H3). Lower risk ranks safer.
 /// UI displays safety as `1 − routeRisk`. Routes with OOV fraction > 97% are insufficient.
 enum RouteRiskScorer {
+    /// Fraction of the gap between a cell's P90 (high-hour) rate and its trip-time rate that is
+    /// added to the trip-time rate, nudging risk up for cells that are much worse at other hours.
     static let highHourGapWeight = 0.30
 
+    // MARK: Scoring
+
     /// Applies adjusted route risk → `ComputedRoute.safetyScore` (stores risk, not `1 − risk`).
+    /// Resets tier/insufficient flags on every route first. Routes missing from `response` or with a
+    /// non-finite risk get `safetyScore == nil`; insufficient-info routes get score `0` and no tier.
+    /// Tiers are assigned only among routes with a usable score.
     static func applyingPredictionScores(
         to routes: [ComputedRoute],
         response: RoutePredictionResponse
@@ -118,6 +127,7 @@ enum RouteRiskScorer {
     }
 
     /// Per-cell adjusted risk for one unique H3 cell.
+    /// Returns `.nan` for negative or non-finite inputs so callers can reject the whole route.
     static func adjustedCellRisk(current: Double, cellP90: Double) -> Double {
         guard current.isFinite, cellP90.isFinite, current >= 0, cellP90 >= 0 else {
             return .nan
@@ -126,6 +136,8 @@ enum RouteRiskScorer {
     }
 
     /// Sum adjusted risk once per unique H3 using trip-time severity and cell P90 references.
+    /// Falls back to the server's `predictionSummary.sum` when there are no cells or any cell lacks
+    /// a P90 value (older CrimePredictor servers). Returns `.nan` if any adjusted cell is invalid.
     static func adjustedRouteRisk(_ prediction: RoutePrediction) -> Double {
         guard !prediction.cells.isEmpty,
               prediction.cells.allSatisfy({ $0.highHourSeverityWeightedRate != nil }) else {
@@ -146,12 +158,16 @@ enum RouteRiskScorer {
         return sum
     }
 
+    /// `true` when the route has no cells or its out-of-vocabulary fraction exceeds
+    /// `RouteSafetyStyle.insufficientOOVFractionThreshold`.
     static func isInsufficientSafetyInfo(_ prediction: RoutePrediction) -> Bool {
         let total = prediction.cellCount
         guard total > 0 else { return true }
         let oovFraction = Double(prediction.outOfVocabularyCount) / Double(total)
         return oovFraction > RouteSafetyStyle.insufficientOOVFractionThreshold
     }
+
+    // MARK: Ranking
 
     static func rankedSafestFirst(_ routes: [ComputedRoute]) -> [ComputedRoute] {
         routes.sorted(by: saferThan)
@@ -163,6 +179,8 @@ enum RouteRiskScorer {
             .id
     }
 
+    /// Sort predicate: scored routes before unscored/insufficient ones, then lower risk first.
+    /// Ties (and all unscored routes) fall back to Google response order for a stable ranking.
     static func saferThan(_ lhs: ComputedRoute, _ rhs: ComputedRoute) -> Bool {
         let leftOK = !lhs.hasInsufficientSafetyInfo && lhs.safetyScore != nil
         let rightOK = !rhs.hasInsufficientSafetyInfo && rhs.safetyScore != nil
@@ -180,6 +198,8 @@ enum RouteRiskScorer {
         return lhs.responseIndex < rhs.responseIndex
     }
 
+    /// Maps safest-first IDs to tiers: first is `.safest`, last is `.unsafest` (when 2+ routes),
+    /// everything in between is `.medium`.
     static func tiers(forRankedIDs rankedIDs: [String]) -> [String: RouteSafetyTier] {
         let count = rankedIDs.count
         guard count > 0 else { return [:] }

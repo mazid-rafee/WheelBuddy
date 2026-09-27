@@ -11,6 +11,8 @@ import CoreVideo
 import Foundation
 import Vision
 
+/// Pluggable single-frame lane detector. `analyze` runs synchronously (image processing / Vision),
+/// so call it off the main thread.
 protocol LanePerceptionBackend: AnyObject, Sendable {
     func analyze(pixelBuffer: CVPixelBuffer) -> LanePerceptionResult
 }
@@ -31,16 +33,23 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
     /// Near-field row used to estimate lane width / center.
     static let evaluationY: CGFloat = 0.85
 
+    /// Plausible left-to-right lane width at `evaluationY`, as a fraction of image width.
     static let minLaneWidth: CGFloat = 0.18
     static let maxLaneWidth: CGFloat = 0.85
+    /// Minimum vertical extent (normalized) of a contour's in-ROI points to count as a lane segment.
     static let minSegmentLength: CGFloat = 0.06
     static let maxAbsSlopeForHorizontalReject: CGFloat = 0.12 // dy/dx ~ flat
 
+    /// Returns `.empty` if Vision fails or finds no contours. Output points and x positions are in
+    /// top-left normalized image coordinates.
     func analyze(pixelBuffer: CVPixelBuffer) -> LanePerceptionResult {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         return analyze(ciImage: ciImage)
     }
 
+    /// Pipeline: grayscale + contrast boost → contour detection → per-contour ROI clip and
+    /// line fit `x = a*y + b` → reject short / near-horizontal / edge segments → keep the best-scoring
+    /// left and right candidates → confidence from segment length, lane-width plausibility, and score.
     private func analyze(ciImage: CIImage) -> LanePerceptionResult {
         let mono = ciImage.applyingFilter("CIPhotoEffectMono", parameters: [:])
         let contrast = mono.applyingFilter("CIColorControls", parameters: [
@@ -125,6 +134,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
                 inward = xFit.a > -0.05
             }
 
+            // Favor long, inward-leaning segments with more in-ROI points (point bonus saturates at 40).
             let score = length * (inward ? 1.4 : 0.6) * CGFloat(min(xs.count, 40)) / 40.0
             let candidate = LaneCandidate(
                 xAtEval: xAtEval,
@@ -147,6 +157,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
         let bestRight = rightCandidates.max(by: { $0.score < $1.score })
 
         var confidence: CGFloat = 0
+        // Both sides found and correctly ordered: full confidence model.
         if let l = bestLeft, let r = bestRight, r.xAtEval > l.xAtEval {
             let width = r.xAtEval - l.xAtEval
             let widthOK = width >= Self.minLaneWidth && width <= Self.maxLaneWidth
@@ -163,6 +174,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
             )
         }
 
+        // Only one side (or an inverted pair): return what was found with a fixed low confidence.
         if bestLeft != nil || bestRight != nil {
             confidence = 0.22
         }
@@ -177,6 +189,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
 
     // MARK: - Geometry helpers
 
+    /// A fitted segment `x = a*y + b` spanning `y0...y1` (top-left normalized coords).
     private struct LaneCandidate {
         var xAtEval: CGFloat
         var score: CGFloat
@@ -187,6 +200,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
         var y1: CGFloat
     }
 
+    /// Evenly samples `count` points along the candidate's fitted line, clamped to [0, 1].
     private static func sampleLine(candidate: LaneCandidate, count: Int = 6) -> [CGPoint] {
         let lo = min(candidate.y0, candidate.y1)
         let hi = max(candidate.y0, candidate.y1)
@@ -199,6 +213,7 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
         }
     }
 
+    /// Trapezoid test: horizontal bounds are linearly interpolated between the top and bottom ROI edges.
     private static func pointInROI(x: CGFloat, y: CGFloat) -> Bool {
         guard y >= roiTopY, y <= roiBottomY else { return false }
         let t = (y - roiTopY) / max(roiBottomY - roiTopY, 1e-6)
@@ -207,6 +222,8 @@ final class GeometricLaneBackend: LanePerceptionBackend, Sendable {
         return x >= left && x <= right
     }
 
+    /// Least-squares fit of x as a function of y (regressing on y keeps near-vertical lane lines
+    /// well-conditioned). Returns nil when y values are degenerate.
     private static func linearFitXGivenY(xs: [CGFloat], ys: [CGFloat]) -> (a: CGFloat, b: CGFloat)? {
         // x = a*y + b
         let n = CGFloat(ys.count)

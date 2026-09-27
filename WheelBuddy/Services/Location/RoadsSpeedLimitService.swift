@@ -9,8 +9,11 @@
 import CoreLocation
 import Foundation
 
+/// Posted speed limit of the last road segment Google returned for the queried path.
 struct RoadsSpeedLimitResult: Equatable, Sendable {
+    /// Rounded to the nearest whole MPH; always > 0.
     let speedLimitMPH: Int
+    /// Google place ID of the road segment the limit applies to, when provided.
     let placeId: String?
 }
 
@@ -48,6 +51,10 @@ final class RoadsSpeedLimitService: Sendable {
     }
 
     /// Asks Google for the posted limit along a short GPS path (snapped server-side).
+    /// Only the first 100 points are sent; the limit of the last returned segment is used, so pass
+    /// points oldest-first. 12 s request timeout.
+    /// - Throws: `RoadsSpeedLimitError` for a missing key, empty path, non-2xx status (body truncated
+    ///   to 280 chars), decode failure, or no positive limit. Transport errors propagate unchanged.
     func fetchSpeedLimitMPH(path: [CLLocationCoordinate2D]) async throws -> RoadsSpeedLimitResult {
         let key = RoadsAPIConfiguration.apiKey
         guard !key.isEmpty else { throw RoadsSpeedLimitError.missingAPIKey }
@@ -107,10 +114,13 @@ private struct SpeedLimitEntry: Decodable, Sendable {
     let units: String?
 }
 
+// MARK: - Configuration
+
 enum RoadsAPIConfiguration {
     private static let placeholder = "REPLACE_WITH_MAPS_API_KEY"
 
     /// Prefers the Maps SDK key (`GMSApiKey`); falls back to Routes key.
+    /// Skips empty, placeholder, and unexpanded `$(...)` build-setting values; returns "" if none remain.
     static var apiKey: String {
         let candidates = [
             Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,

@@ -5,6 +5,10 @@
 
 import Foundation
 
+// MARK: - Errors
+
+/// Failures from `CrimePredictionService`, covering transport, server-reported errors, and
+/// client-side validation of the response contract.
 enum CrimePredictionServiceError: LocalizedError, Sendable {
     case invalidBaseURL
     case invalidResponse
@@ -39,6 +43,7 @@ enum CrimePredictionServiceError: LocalizedError, Sendable {
         }
     }
 
+    /// Structured server details (e.g. per-route OOV stats), only present for `.apiError`.
     var apiErrorDetails: CrimeAPIErrorDetails? {
         if case let .apiError(_, _, details) = self {
             return details
@@ -46,6 +51,8 @@ enum CrimePredictionServiceError: LocalizedError, Sendable {
         return nil
     }
 }
+
+// MARK: - Service
 
 /// Capture-only client for the local CrimePredictor FastAPI server.
 actor CrimePredictionService {
@@ -55,6 +62,8 @@ actor CrimePredictionService {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
+    /// Pass a custom `session` for tests; otherwise uses an ephemeral session (60 s request /
+    /// 120 s resource timeouts) that fails immediately instead of waiting for connectivity.
     init(session: URLSession? = nil) {
         if let session {
             self.session = session
@@ -71,7 +80,13 @@ actor CrimePredictionService {
         // RouteExtractionPayload already uses explicit snake_case CodingKeys.
     }
 
+    // MARK: Public API
+
     /// POSTs all routes in one request and validates the structured response.
+    /// - Throws: `CancellationError` if the task (or underlying URL request) is cancelled;
+    ///   `CrimePredictionServiceError` for non-2xx responses (`.apiError` when the FastAPI error
+    ///   envelope decodes, otherwise `.httpStatus`), decoding failures, or validation failures.
+    ///   Other transport errors propagate unchanged.
     func predictRoutes(_ request: RoutePredictionRequest) async throws -> RoutePredictionResponse {
         try Task.checkCancellation()
 
@@ -121,6 +136,10 @@ actor CrimePredictionService {
         return decoded
     }
 
+    // MARK: Validation
+
+    /// Enforces the response contract: matching `request_id`, exactly the requested route IDs
+    /// (no duplicates, none missing or extra), and finite summary, time-bin, and per-cell rates.
     private func validate(
         response: RoutePredictionResponse,
         against request: RoutePredictionRequest

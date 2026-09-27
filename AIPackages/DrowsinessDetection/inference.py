@@ -58,6 +58,13 @@ class SchemaContractError(ValueError):
 
 
 def _require_v3_checkpoint(checkpoint: Dict[str, Any]) -> None:
+    """Raise ``SchemaContractError`` unless ``checkpoint`` matches schema v3.
+
+    Requires the v3 schema id, ``feature_names`` exactly equal to
+    ``DROWSINESS_FEATURE_NAMES`` (same order), ``class_to_idx`` equal to the
+    label contract, and the standardizer keys (``feature_mean``,
+    ``feature_std``, ``standardized_feature_mask``).
+    """
     schema = checkpoint.get("feature_schema_version") or checkpoint.get(
         "schema_version"
     )
@@ -100,7 +107,16 @@ def load_checkpoint(
     """Load a v3 checkpoint and return ``(model, ckpt, window)``.
 
     Uses ``load_state_dict(..., strict=True)``. Model is moved to ``device`` and
-    set to ``eval()``.
+    set to ``eval()``. The returned checkpoint dict is augmented with a
+    ``"_standardizer"`` (``FeatureStandardizer``) and has ``idx_to_class`` /
+    ``class_to_idx`` overwritten with the label contract. ``window`` comes from
+    ``window_frames`` / ``window_size`` / ``args.window_size`` in the
+    checkpoint, falling back to ``DEFAULT_WINDOW_SIZE``.
+
+    Raises ``FileNotFoundError`` if the file is missing, ``KeyError`` for a
+    missing ``model_state_dict`` / ``class_to_idx``, ``SchemaContractError``
+    for non-v3 checkpoints, ``ValueError`` for a window size < 1, and
+    ``RuntimeError`` from PyTorch if the weights do not match the architecture.
     """
     checkpoint_path = Path(checkpoint_path)
     if not checkpoint_path.is_file():
@@ -161,7 +177,11 @@ def normalize_windows(
 ) -> torch.Tensor:
     """Apply training standardization and re-apply validity masks.
 
-    Accepts ``[T, F]`` or ``[B, T, F]`` raw geometry features.
+    Accepts ``[T, F]`` or ``[B, T, F]`` raw geometry features with
+    ``F == FEATURE_COUNT`` in ``DROWSINESS_FEATURE_NAMES`` order. Returns a
+    ``float32`` tensor of the same rank (``[T, F]`` in, ``[T, F]`` out).
+
+    Raises ``SchemaContractError`` on a wrong shape or any non-finite value.
     """
     if isinstance(windows, torch.Tensor):
         array = windows.detach().cpu().numpy()
@@ -191,7 +211,11 @@ def predict_logits(
     features: torch.Tensor,
     device: torch.device,
 ) -> torch.Tensor:
-    """Return raw logits for ``features`` shaped ``[batch, T, F]``."""
+    """Return raw logits ``[batch, NUM_CLASSES]`` for ``features`` shaped ``[batch, T, F]``.
+
+    Expects already-standardized features (see ``normalize_windows``). Raises
+    ``SchemaContractError`` if the input is not 3-D with ``F == FEATURE_COUNT``.
+    """
     model.eval()
     features = to_device(features, device, dtype=torch.float32)
     if features.ndim != 3 or features.shape[-1] != FEATURE_COUNT:
@@ -218,7 +242,10 @@ def predict_label(
     features: torch.Tensor,
     device: torch.device,
 ) -> Dict[str, Any]:
-    """Return label / confidence / probabilities for a single window or batch."""
+    """Return label / confidence / probabilities for the first window of ``features``.
+
+    ``features`` is ``[batch, T, F]``; only ``batch[0]`` is summarized.
+    """
     probs = predict_proba(model, features, device)
     if probs.shape[-1] != NUM_CLASSES:
         raise SchemaContractError(
@@ -242,7 +269,10 @@ def run_inference(
     loader: DataLoader,
     device: torch.device,
 ) -> Dict[str, torch.Tensor]:
-    """Score a DataLoader of ``(features, labels)`` batches (CLI / eval)."""
+    """Score a DataLoader of ``(features, labels)`` batches (CLI / eval).
+
+    Returns CPU tensors ``preds [N]``, ``labels [N]`` and ``probs [N, C]``.
+    """
     model.eval()
     all_preds: List[torch.Tensor] = []
     all_labels: List[torch.Tensor] = []
@@ -347,6 +377,7 @@ def smoke_val_window(
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    """CLI entry: evaluate the checkpoint on the validation split (or smoke-test one window)."""
     args = parse_args(argv)
     device = resolve_device(args.gpu, require_cuda=not args.allow_cpu)
     configure_cuda(device)

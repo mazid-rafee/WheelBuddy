@@ -1,4 +1,11 @@
-"""Route geometry → ordered H3 cells with estimated local entry times."""
+"""Route geometry → ordered H3 cells with estimated local entry times.
+
+Pipeline: decode each step's Google polyline, densify to <= 80 m spacing,
+map points to H3 res-9 cells, estimate each cell's entry time from
+traffic-scaled step durations, then derive training-compatible local calendar
+features (hour bin, weekday, month) using the cell's city timezone.
+Failures raise ``PreprocessError`` (mapped to HTTP 400 by the app).
+"""
 
 from __future__ import annotations
 
@@ -80,6 +87,12 @@ class PreprocessError(Exception):
 
 @dataclass(frozen=True)
 class RouteCellSample:
+    """One in-vocabulary H3 cell on a route with its model input features.
+
+    ``sequence_index`` is the cell's position among all traversed cells
+    (including skipped OOV cells). Calendar fields are in the city's local time.
+    """
+
     sequence_index: int
     h3_cell: str
     entry_time_utc: datetime
@@ -93,7 +106,12 @@ class RouteCellSample:
 
 
 def decode_polyline(encoded: str) -> list[tuple[float, float]]:
-    """Decode a Google encoded polyline into (lat, lng) points."""
+    """Decode a Google encoded polyline (precision 1e5) into (lat, lng) points.
+
+    Raises ``PreprocessError("malformed_polyline")`` if the string is
+    truncated, yields fewer than two points, or contains out-of-range or
+    non-finite coordinates.
+    """
     coordinates: list[tuple[float, float]] = []
     index = 0
     lat = 0
@@ -151,6 +169,7 @@ def decode_polyline(encoded: str) -> list[tuple[float, float]]:
 
 
 def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance in meters between two points given in degrees."""
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     d_phi = math.radians(lat2 - lat1)
@@ -167,7 +186,11 @@ def densify_coordinates(
     *,
     max_segment_meters: float = DEFAULT_MAX_SEGMENT_METERS,
 ) -> list[tuple[float, float]]:
-    """Insert interpolated points so consecutive vertices are <= max spacing."""
+    """Insert interpolated points so consecutive vertices are <= max spacing.
+
+    Interpolation is linear in lat/lng, which is adequate at these short
+    segment lengths. Raises ``ValueError`` if ``max_segment_meters <= 0``.
+    """
     if max_segment_meters <= 0:
         raise ValueError("max_segment_meters must be positive")
     if len(points) < 2:
@@ -193,6 +216,11 @@ def densify_coordinates(
 
 
 def latlng_to_h3_cell(latitude: float, longitude: float, resolution: int = H3_RESOLUTION) -> str:
+    """Return the H3 cell id for a point.
+
+    Supports both the h3 v4 (``latlng_to_cell``) and v3 (``geo_to_h3``) APIs.
+    Raises ``PreprocessError`` if the ``h3`` package is not installed.
+    """
     try:
         import h3
     except ImportError as exc:  # pragma: no cover
@@ -207,6 +235,7 @@ def latlng_to_h3_cell(latitude: float, longitude: float, resolution: int = H3_RE
 
 
 def collapse_consecutive_duplicates(cells: Iterable[str]) -> list[str]:
+    """Drop adjacent repeats (A, A, B, A -> A, B, A); revisits are kept."""
     collapsed: list[str] = []
     for cell in cells:
         if not collapsed or collapsed[-1] != cell:
@@ -220,12 +249,14 @@ def path_to_ordered_h3_cells(
     resolution: int = H3_RESOLUTION,
     max_segment_meters: float = DEFAULT_MAX_SEGMENT_METERS,
 ) -> list[str]:
+    """Densify a path and return its H3 cells in travel order, without adjacent repeats."""
     densified = densify_coordinates(points, max_segment_meters=max_segment_meters)
     cells = [latlng_to_h3_cell(lat, lng, resolution) for lat, lng in densified]
     return collapse_consecutive_duplicates(cells)
 
 
 def cumulative_distances(points: Sequence[tuple[float, float]]) -> list[float]:
+    """Return running path length in meters; same length as ``points``, starting at 0."""
     cum = [0.0]
     for start, end in zip(points[:-1], points[1:]):
         cum.append(cum[-1] + haversine_meters(start[0], start[1], end[0], end[1]))
@@ -239,7 +270,12 @@ def map_cells_to_entry_times(
     departure_time_utc: datetime,
     duration_seconds: float,
 ) -> list[tuple[str, datetime]]:
-    """Assign each ordered unique cell its first-entry UTC timestamp along the path."""
+    """Assign each ordered unique cell its first-entry UTC timestamp along the path.
+
+    Entry time is interpolated linearly by distance over ``duration_seconds``
+    (constant speed). Cells not found on the densified path get the departure
+    time. Raises ``PreprocessError`` if ``cells`` is empty.
+    """
     if not cells:
         raise PreprocessError("malformed_polyline", "route produced no H3 cells")
     densified = densify_coordinates(points)
@@ -272,7 +308,17 @@ def assign_cell_times_from_scaled_steps(
     *,
     max_segment_meters: float = DEFAULT_MAX_SEGMENT_METERS,
 ) -> tuple[list[tuple[float, float]], list[tuple[str, datetime]]]:
-    """Decode/densify a route and estimate per-cell entry times with traffic scaling."""
+    """Decode/densify a route and estimate per-cell entry times with traffic scaling.
+
+    Each step's ``static_duration_seconds`` is scaled by
+    ``route.duration_seconds / sum(static durations)`` so the steps add up to
+    the traffic-aware total; within a step, time is interpolated by distance.
+
+    Returns ``(all_points, cell_entries)``: the concatenated densified points
+    and ``(h3_cell, entry_time_utc)`` for each cell change along the path
+    (adjacent repeats collapsed, revisits kept). Raises ``PreprocessError`` for
+    non-positive static durations, a malformed polyline, or no cells.
+    """
     static_sum = sum(step.static_duration_seconds for step in route.steps)
     if static_sum <= 0.0:
         raise PreprocessError(
@@ -296,6 +342,7 @@ def assign_cell_times_from_scaled_steps(
         densified = densify_coordinates(
             raw_points, max_segment_meters=max_segment_meters
         )
+        # Consecutive steps share an endpoint; drop the duplicate vertex.
         if all_points and densified and all_points[-1] == densified[0]:
             densified = densified[1:]
         if not densified:
@@ -334,7 +381,11 @@ def local_calendar_features(
     entry_time_utc: datetime,
     city_name: str,
 ) -> tuple[int, int, int, str, str]:
-    """Return (hour, day_of_week Mon=0, month 1..12, weekday name, month name)."""
+    """Return (hour, day_of_week Mon=0, month 1..12, weekday name, month name).
+
+    Converts ``entry_time_utc`` to the city's IANA timezone. Raises
+    ``PreprocessError("unknown_city")`` if the city is not in ``CITY_TIMEZONES``.
+    """
     zone_name = CITY_TIMEZONES.get(city_name)
     if zone_name is None:
         raise PreprocessError(
@@ -356,6 +407,10 @@ def local_calendar_features(
 
 
 def hour_to_bin_start(hour: int) -> int:
+    """Map a local hour 0..23 to its 3-hour bin start (0, 3, ..., 21).
+
+    Raises ``PreprocessError`` if the hour is out of range.
+    """
     # Matches time_bins.TIME_BIN_HOURS used during training.
     time_bin_hours = 3
     if hour < 0 or hour > 23:
@@ -421,7 +476,13 @@ def build_route_cell_samples_with_stats(
     known_h3_cells: set[str],
     max_segment_meters: float = DEFAULT_MAX_SEGMENT_METERS,
 ) -> tuple[list[RouteCellSample], dict[str, object]]:
-    """Build in-vocabulary samples; OOV H3 cells are skipped (not an error)."""
+    """Build in-vocabulary samples; OOV H3 cells are skipped (not an error).
+
+    Returns ``(samples, stats)`` where ``stats`` has ``route_id``,
+    ``cell_count``, ``scored_cell_count``, ``out_of_vocabulary_count`` and up
+    to 5 unique ``example_oov_cells``. Raises ``PreprocessError`` if an
+    in-vocabulary cell has no city mapping or its city has no timezone.
+    """
     _, cell_entries = assign_cell_times_from_scaled_steps(
         route, max_segment_meters=max_segment_meters
     )

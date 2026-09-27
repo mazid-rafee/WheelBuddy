@@ -19,11 +19,14 @@ LEGACY_SCHEMA_VERSIONS: frozenset[str | int] = frozenset(
     {1, "1", "v1", "schema_v1", "drowsiness_feature_schema_v2"}
 )
 
+# Degenerate-geometry threshold and division guard used by feature_math.
 EPS: float = 1e-6
 
 # Minimum landmark points required for a usable eye region contour.
 MIN_EYE_LANDMARK_POINTS: int = 4
 
+# Order is the model input column order ([..., F] axis); the API rejects
+# requests whose feature_names differ in content or order.
 DROWSINESS_FEATURE_NAMES: List[str] = [
     "face_detected",
     "yaw",

@@ -62,6 +62,7 @@ class RatePrediction:
     used_unk_city: bool
 
     def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable dict of all fields plus ``rate_names``."""
         return {
             "person_rate": self.person_rate,
             "property_rate": self.property_rate,
@@ -89,6 +90,7 @@ def sha256_file(path: Path) -> str:
 
 
 def load_json_mapping(path: Path) -> dict[str, int]:
+    """Load a ``{token: index}`` vocabulary JSON; raise ``FileNotFoundError`` if absent."""
     if not path.is_file():
         raise FileNotFoundError(f"Vocabulary file not found: {path}")
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -96,10 +98,12 @@ def load_json_mapping(path: Path) -> dict[str, int]:
 
 
 def normalize_city_name(city_name: str) -> str:
+    """Strip and lowercase to match the city vocabulary keys."""
     return str(city_name).strip().lower()
 
 
 def hour_to_bin_start(hour: int) -> int:
+    """Map hour 0..23 to its ``TIME_BIN_HOURS`` bin start; ``ValueError`` if out of range."""
     hour_int = int(hour)
     if hour_int < 0 or hour_int > 23:
         raise ValueError(f"hour must be in 0..23, got {hour_int}")
@@ -107,6 +111,7 @@ def hour_to_bin_start(hour: int) -> int:
 
 
 def latlng_to_h3_cell(latitude: float, longitude: float, resolution: int = H3_RESOLUTION) -> str:
+    """Return the H3 cell id (v4 or v3 API); ``ImportError`` if h3 is not installed."""
     if h3 is None:
         raise ImportError("The 'h3' package is required for lat/lng inputs. Install with: pip install h3")
     if hasattr(h3, "latlng_to_cell"):
@@ -115,6 +120,10 @@ def latlng_to_h3_cell(latitude: float, longitude: float, resolution: int = H3_RE
 
 
 def lookup_index(mapping: Mapping[str, int], key: str, *, kind: str) -> tuple[int, bool]:
+    """Return ``(index, used_unk)``, falling back to ``<UNK>`` for unknown keys.
+
+    Raises ``KeyError`` if the key is unknown and the vocabulary has no ``<UNK>``.
+    """
     if key in mapping:
         return int(mapping[key]), False
     if UNK_TOKEN not in mapping:
@@ -133,6 +142,15 @@ class CrimeRateInference:
         device: str | torch.device | None = None,
         verify_checksums: bool = True,
     ) -> None:
+        """Load and validate the checkpoint and vocabularies, then build the model in eval mode.
+
+        Raises ``FileNotFoundError`` for missing checkpoint/metadata/vocab
+        files; ``ValueError`` if the checkpoint is not a rate-model dict, its
+        ``time_bin_hours`` or vocabulary sizes disagree with the code/metadata,
+        or a recorded vocabulary checksum mismatches; ``RuntimeError`` if a
+        vocabulary is not in deterministic sorted order. ``device=None``
+        selects CUDA when available.
+        """
         self.checkpoint_path = Path(checkpoint_path).expanduser().resolve()
         self.metadata_dir = Path(metadata_dir).expanduser().resolve()
         self.device = resolve_torch_device(device)
@@ -142,6 +160,8 @@ class CrimeRateInference:
         if not self.metadata_dir.is_dir():
             raise FileNotFoundError(f"Metadata directory not found: {self.metadata_dir}")
 
+        # weights_only=False: the checkpoint also stores config/metrics dicts.
+        # Only load checkpoints from trusted sources.
         checkpoint = torch.load(
             self.checkpoint_path,
             map_location="cpu",
@@ -206,6 +226,7 @@ class CrimeRateInference:
         self.model.eval()
 
     def _validate_vocabularies(self) -> None:
+        """Require ``<UNK>``=0 and other tokens indexed 1..N in sorted order."""
         known_cities = sorted(name for name in self.city_to_index if name != UNK_TOKEN)
         known_h3 = sorted(name for name in self.h3_cell_to_index if name != UNK_TOKEN)
         rebuilt_cities = {UNK_TOKEN: 0, **{name: i for i, name in enumerate(known_cities, 1)}}
@@ -216,6 +237,11 @@ class CrimeRateInference:
             raise RuntimeError("h3_cell_to_index.json is not a deterministic sorted vocabulary")
 
     def _verify_checksums(self) -> None:
+        """Compare vocab file SHA-256s against those recorded in the checkpoint.
+
+        No-op if the checkpoint has no checksums; entries without a recorded
+        value are skipped.
+        """
         recorded = self.checkpoint.get("vocabulary_checksums")
         if not recorded:
             return
@@ -252,7 +278,13 @@ class CrimeRateInference:
         hour: int | None = None,
         hour_bin_start: int | None = None,
     ) -> dict[str, Any]:
-        """Map a raw or partially encoded query to model indices."""
+        """Map a raw or partially encoded query to model indices.
+
+        Precedence: ``city_index`` over ``city_name``; ``h3_cell_index`` over
+        ``h3_cell`` over ``latitude``/``longitude``; ``hour_bin_start`` over
+        ``hour``. Unknown city/H3 names map to ``<UNK>`` (flagged via
+        ``used_unk_*``). Raises ``ValueError`` for missing or out-of-range inputs.
+        """
         month_int = int(month)
         dow_int = int(day_of_week)
         if month_int < 1 or month_int > 12:
@@ -331,7 +363,13 @@ class CrimeRateInference:
         day_of_week: int | Sequence[int],
         hour_bin_start: int | Sequence[int],
     ) -> torch.Tensor:
-        """Forward pass on encoded tensors/scalars. Returns `[B, 4]` rates."""
+        """Forward pass on encoded tensors/scalars. Returns `[B, 4]` rates.
+
+        Scalars become a batch of 1; sequences must be 1-D and equal length.
+        Columns follow ``RATE_NAMES`` (person, property, society, other), in
+        expected incidents per hour. Range checks happen in the model and raise
+        ``ValueError``.
+        """
 
         def as_1d(value: int | Sequence[int], name: str) -> torch.Tensor:
             if isinstance(value, (int,)):
@@ -365,7 +403,11 @@ class CrimeRateInference:
         hour: int | None = None,
         hour_bin_start: int | None = None,
     ) -> RatePrediction:
-        """Encode one query and return category rates plus totals."""
+        """Encode one query and return category rates plus totals.
+
+        ``severity_weighted_rate`` uses the model's ``severity_weights`` buffer.
+        Accepts the same inputs and raises the same errors as ``encode``.
+        """
         encoded = self.encode(
             city_name=city_name,
             city_index=city_index,
@@ -464,6 +506,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point: score one query and print it (text or ``--json``)."""
     args = parse_args(argv)
     engine = CrimeRateInference(
         checkpoint_path=args.checkpoint,

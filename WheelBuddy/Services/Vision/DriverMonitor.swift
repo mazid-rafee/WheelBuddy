@@ -11,11 +11,15 @@ import Vision
 /// Also extracts drowsiness model features (Vision landmarks + hand pose) for remote inference.
 @MainActor
 final class DriverMonitor: ObservableObject {
+    /// Debounced attention state: `.lookingAway` only after `lookingAwayAlertDuration` of sustained yaw.
     @Published private(set) var attentionState: DriverAttentionState = .noFace
+    /// Set when the legacy `CameraManager` path fails to start; never set in external-frame mode.
     @Published private(set) var cameraError: CameraError?
+    /// Attention updates from Vision results arriving while false are discarded.
     @Published private(set) var isRunning = false
 
-    /// Optional remote drowsiness capture path (logging only; does not drive UI).
+    /// Optional remote drowsiness path; receives one feature sample per analyzed frame.
+    /// Its wake-up alert is observed by DriveView, not by this monitor.
     weak var drowsinessCoordinator: DrowsinessInferenceCoordinator?
 
     private let cameraManager = CameraManager()
@@ -33,6 +37,10 @@ final class DriverMonitor: ObservableObject {
     /// Looking away must persist this long before `attentionState` becomes `.lookingAway`.
     private let lookingAwayAlertDuration: TimeInterval = 2.0
 
+    // MARK: - Lifecycle (legacy single camera)
+
+    /// Starts the front `CameraManager` and routes its frames into Vision.
+    /// Permission / configuration failures are published via `cameraError`.
     func start() {
         cameraError = nil
 
@@ -104,6 +112,8 @@ final class DriverMonitor: ObservableObject {
         analyze(pixelBuffer: pixelBuffer, yawThreshold: Self.yawLookAwayThreshold)
     }
 
+    /// Runs face landmarks + hand pose on one frame, then hops to main to update attention state and
+    /// forward a drowsiness feature sample. Hand pose is passed along but ignored by the v3 schema.
     private nonisolated func analyze(pixelBuffer: CVPixelBuffer, yawThreshold: Double) {
         defer {
             processingLock.lock()
@@ -187,6 +197,10 @@ final class DriverMonitor: ObservableObject {
         return .attentive
     }
 
+    // MARK: - Temporal logic
+
+    /// Debounces per-frame states: `.noFace` / `.attentive` apply immediately, while `.lookingAway`
+    /// must persist for `lookingAwayAlertDuration` before it is published.
     private func applyTemporalLogic(instantState: DriverAttentionState) {
         // Ignore stale Vision results that finish after stop().
         guard isRunning else { return }

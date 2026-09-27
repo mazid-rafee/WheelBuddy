@@ -8,7 +8,9 @@ import Foundation
 /// Backend-ready route timing payload derived from a Google Routes candidate.
 struct RouteExtractionPayload: Codable, Equatable, Sendable {
     let routeID: String
+    /// ISO-8601 UTC string, shared by every route from the same Compute Routes request.
     let departureTimeUTC: String
+    /// Traffic-aware total route duration.
     let durationSeconds: Double
     let steps: [RouteStepExtractionPayload]
 
@@ -20,6 +22,7 @@ struct RouteExtractionPayload: Codable, Equatable, Sendable {
     }
 }
 
+/// One flattened route step; `staticDurationSeconds` is Google's traffic-free step duration.
 struct RouteStepExtractionPayload: Codable, Equatable, Sendable {
     let encodedPolyline: String
     let distanceMeters: Int

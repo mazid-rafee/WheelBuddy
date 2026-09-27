@@ -1,4 +1,9 @@
-"""Categorical embedding MLP for per-hour crime-rate prediction."""
+"""Categorical embedding MLP for per-hour crime-rate prediction.
+
+Inputs are five categorical features per row (H3 cell index, city index,
+month 1..12, weekday 0..6 with Monday=0, and 3-hour bin start). Output is
+``[B, 4]`` nonnegative rates (person, property, society, other).
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ NUM_RATE_OUTPUTS = 4
 RATE_EPS = 1e-8
 VALID_HOUR_BINS: tuple[int, ...] = HOUR_BIN_STARTS
 
+# Per-category weights (person, property, society, other) for severity-weighted rates.
 DEFAULT_SEVERITY_WEIGHTS: tuple[float, float, float, float] = (
     4.0,
     1.5,
@@ -36,6 +42,10 @@ RATE_NAMES: tuple[str, ...] = (
 
 
 def resolve_torch_device(device: str | torch.device | None = None) -> torch.device:
+    """Return the requested device (CUDA if available when ``None``).
+
+    Raises ``RuntimeError`` if CUDA is requested but unavailable.
+    """
     if device is None:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     resolved = torch.device(device)
@@ -47,6 +57,8 @@ def resolve_torch_device(device: str | torch.device | None = None) -> torch.devi
 
 
 class ResidualMLPBlock(nn.Module):
+    """Pre-norm residual block: ``x + FFN(LayerNorm(x))`` with 2x expansion; shape preserved."""
+
     def __init__(self, width: int, dropout: float) -> None:
         super().__init__()
         self.block = nn.Sequential(
@@ -63,7 +75,12 @@ class ResidualMLPBlock(nn.Module):
 
 
 class CrimeRateMLP(nn.Module):
-    """Predict nonnegative hourly rates from five categorical inputs."""
+    """Predict nonnegative hourly rates from five categorical inputs.
+
+    Index 0 of the H3 and city embeddings is ``<UNK>`` (``padding_idx=0``, so
+    it stays a zero vector). ``severity_weights`` is saved in the state dict.
+    Constructor raises ``ValueError`` for vocab sizes < 2 or ``num_outputs != 4``.
+    """
 
     def __init__(
         self,
@@ -154,6 +171,11 @@ class CrimeRateMLP(nn.Module):
         day_of_week: torch.Tensor,
         hour_bin_start: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Check shapes, devices and value ranges; convert to 0-based embedding indices.
+
+        Month becomes 0..11 and ``hour_bin_start`` becomes a bin index. Raises
+        ``ValueError`` on any violation.
+        """
         tensors = (
             h3_cell_index,
             city_index,
@@ -209,6 +231,11 @@ class CrimeRateMLP(nn.Module):
         day_of_week: torch.Tensor,
         hour_bin_start: torch.Tensor,
     ) -> torch.Tensor:
+        """Return ``[B, 4]`` rates (``softplus + RATE_EPS``, strictly positive).
+
+        All inputs are 1-D ``[B]`` long tensors on the model's device; see
+        ``_validate_batch`` for accepted ranges.
+        """
         (
             h3_cell_index,
             city_index,
@@ -242,6 +269,7 @@ class CrimeRateMLP(nn.Module):
         day_of_week: torch.Tensor,
         hour_bin_start: torch.Tensor,
     ) -> torch.Tensor:
+        """Return ``[B]`` sum of the four category rates."""
         rates = self.forward(
             h3_cell_index, city_index, month, day_of_week, hour_bin_start
         )
@@ -256,6 +284,7 @@ class CrimeRateMLP(nn.Module):
         hour_bin_start: torch.Tensor,
         severity_weights: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        """Return ``[B]`` rates weighted by ``severity_weights`` (``[4]``; defaults to the buffer)."""
         rates = self.forward(
             h3_cell_index, city_index, month, day_of_week, hour_bin_start
         )
@@ -284,6 +313,7 @@ def build_model(
     dropout: float = 0.15,
     device: str | torch.device | None = None,
 ) -> CrimeRateMLP:
+    """Construct a ``CrimeRateMLP`` (default severity weights) and move it to ``device`` if given."""
     model = CrimeRateMLP(
         num_h3_embeddings=num_h3_embeddings,
         num_city_embeddings=num_city_embeddings,

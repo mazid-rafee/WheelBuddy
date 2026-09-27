@@ -1,4 +1,9 @@
-"""Model loading and batched route scoring for the FastAPI server."""
+"""Model loading and batched route scoring for the FastAPI server.
+
+Paths can be overridden via the ``CRIME_MODEL_PATH``, ``CRIME_METADATA_DIR`` and
+``CRIME_PARQUET_PATH`` environment variables. Loading failures surface as
+``ModelUnavailableError``; bad model outputs as ``InferenceFailureError``.
+"""
 
 from __future__ import annotations
 
@@ -40,6 +45,7 @@ DEFAULT_PARQUET = PACKAGE_ROOT / "data" / "crime_rate_dataset.parquet"
 DEFAULT_H3_CITY_CACHE = PACKAGE_ROOT / "data" / "crime_rate_metadata" / "h3_cell_to_city.json"
 DEFAULT_BATCH_SIZE = 2048
 
+# src/ modules use flat imports (e.g. `from model.model import ...`), so expose it.
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
@@ -57,7 +63,12 @@ def _adjusted_severity_weighted_sum(
     *,
     gap_weight: float = HIGH_HOUR_GAP_WEIGHT,
 ) -> float:
-    """Sum adjusted risk once per unique H3 cell for one time bin."""
+    """Sum adjusted risk once per unique H3 cell for one time bin.
+
+    ``severities`` is aligned with ``cells``. Each cell contributes
+    ``current + gap_weight * max(0, high - current)``, where ``high`` is the
+    cell's high-hour severity (falls back to ``current`` if missing).
+    """
     seen: set[str] = set()
     total = 0.0
     for sample, current in zip(cells, severities):
@@ -70,12 +81,16 @@ def _adjusted_severity_weighted_sum(
 
 
 class ModelUnavailableError(RuntimeError):
+    """Model artifacts are missing or invalid; mapped to HTTP 503 by the app."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.code = "model_unavailable"
 
 
 class InferenceFailureError(RuntimeError):
+    """Inference failed at request time (e.g. non-finite outputs); HTTP 500."""
+
     def __init__(self, message: str, *, code: str = "internal_inference_failure") -> None:
         super().__init__(message)
         self.code = code
@@ -83,6 +98,12 @@ class InferenceFailureError(RuntimeError):
 
 @dataclass
 class RuntimeArtifacts:
+    """Loaded inference state shared across requests.
+
+    ``h3_to_city`` maps each in-vocabulary H3 cell to its lowercase training
+    city; ``known_h3_cells`` is the H3 vocabulary without ``<UNK>``.
+    """
+
     engine: CrimeRateInference
     checkpoint_name: str
     device: str
@@ -92,6 +113,7 @@ class RuntimeArtifacts:
 
 
 def resolve_checkpoint_path() -> Path:
+    """Return ``$CRIME_MODEL_PATH`` or the default ``best.pt``; raise if not a file."""
     override = os.environ.get("CRIME_MODEL_PATH", "").strip()
     if override:
         path = Path(override).expanduser().resolve()
@@ -103,6 +125,7 @@ def resolve_checkpoint_path() -> Path:
 
 
 def resolve_metadata_dir() -> Path:
+    """Return ``$CRIME_METADATA_DIR`` or the default vocab dir; raise if missing."""
     override = os.environ.get("CRIME_METADATA_DIR", "").strip()
     if override:
         path = Path(override).expanduser().resolve()
@@ -114,6 +137,7 @@ def resolve_metadata_dir() -> Path:
 
 
 def resolve_parquet_path() -> Path:
+    """Return ``$CRIME_PARQUET_PATH`` or the default dataset path (existence not checked)."""
     override = os.environ.get("CRIME_PARQUET_PATH", "").strip()
     if override:
         return Path(override).expanduser().resolve()
@@ -126,6 +150,13 @@ def _load_h3_city_mapping(
     cache_path: Path,
     expected_cells: int,
 ) -> dict[str, str]:
+    """Return an H3 cell -> lowercase city_name mapping.
+
+    Uses the JSON cache if it holds at least ``expected_cells`` entries;
+    otherwise scans ``h3_cell``/``city_name`` from the training parquet and
+    rewrites the cache. Raises ``ModelUnavailableError`` if the parquet or
+    pyarrow is missing, a cell maps to multiple cities, or coverage is short.
+    """
     import json
 
     if cache_path.is_file():
@@ -164,7 +195,7 @@ def _load_h3_city_mapping(
             elif existing != city_key:
                 conflicts.setdefault(cell_key, {existing}).add(city_key)
         if len(mapping) >= expected_cells and not conflicts:
-            # Still finish? Prefer full scan for conflict detection on first build.
+            # No early exit: keep scanning the whole file so conflicts are detected.
             pass
 
     if conflicts:
@@ -184,6 +215,12 @@ def _load_h3_city_mapping(
 
 
 def load_runtime_artifacts(*, device: str = "cpu") -> RuntimeArtifacts:
+    """Load the checkpoint, vocabularies and H3->city mapping for serving.
+
+    Vocabulary checksums recorded in the checkpoint are verified. Any missing
+    artifact, checkpoint/vocab mismatch, or incomplete city coverage raises
+    ``ModelUnavailableError``.
+    """
     checkpoint_path = resolve_checkpoint_path()
     metadata_dir = resolve_metadata_dir()
     parquet_path = resolve_parquet_path()
@@ -254,7 +291,12 @@ def _departure_local_calendar(
     route: RouteCandidate,
     samples: list[RouteCellSample],
 ) -> tuple[int, int, int, int]:
-    """Return (month 1..12, day_of_week Mon=0, local_hour, hour_bin_start)."""
+    """Return (month 1..12, day_of_week Mon=0, local_hour, hour_bin_start).
+
+    Uses the departure time in the timezone of the first scored cell's city.
+    If that city has no timezone, falls back to the first sample's features;
+    with no samples at all, falls back to UTC.
+    """
     zone_name: str | None = None
     if samples:
         zone_name = CITY_TIMEZONES.get(samples[0].city_name)
@@ -283,7 +325,14 @@ def _score_route_time_bins(
     month: int,
     day_of_week: int,
 ) -> tuple[list[TimeBinSafetyScore], dict[str, float]]:
-    """Score each TIME_BIN bin; return per-bin scores and each cell's P90 severity."""
+    """Score each TIME_BIN bin; return per-bin scores and each cell's P90 severity.
+
+    ``cells`` should be unique H3 cells. All cells share the departure
+    ``month``/``day_of_week``; only the hour bin varies. The P90 is taken
+    across bins per cell and feeds ``adjusted_severity_weighted_sum``. Empty
+    ``cells`` yields zeroed scores for every bin. Raises
+    ``InferenceFailureError`` on non-finite model output.
+    """
     if not cells:
         empty_scores = [
             TimeBinSafetyScore(
@@ -358,6 +407,13 @@ def _batched_forward(
     artifacts: RuntimeArtifacts,
     samples: list[RouteCellSample],
 ) -> list[dict[str, float]]:
+    """Run the model over samples in chunks of ``artifacts.batch_size``.
+
+    Each sample is scored at its own month/weekday/hour bin. Returns one dict
+    per sample (same order) with the four category rates, ``total_rate`` and
+    ``severity_weighted_rate`` (expected incidents per hour). Raises
+    ``InferenceFailureError`` on non-finite outputs.
+    """
     engine = artifacts.engine
     outputs: list[dict[str, float]] = []
     batch_size = max(1, int(artifacts.batch_size))
@@ -399,6 +455,14 @@ def predict_routes(
     artifacts: RuntimeArtifacts,
     request: PredictRoutesRequest,
 ) -> PredictRoutesResponse:
+    """Score all routes in a request.
+
+    Out-of-vocabulary cells are skipped (only counted). Per-cell predictions
+    use each cell's own entry time. The route summary comes from the
+    departure-time bin in ``time_bin_scores``, preferring the adjusted
+    (high-hour-gap) sum. ``PreprocessError`` and ``InferenceFailureError``
+    propagate to the caller.
+    """
     preprocess_t0 = time.perf_counter()
     route_samples: list[
         tuple[str, list[RouteCellSample], dict[str, object], RouteCandidate]
@@ -432,6 +496,7 @@ def predict_routes(
         )
 
         cells: list[CellPrediction] = []
+        # flat_outputs is concatenated across routes; cursor walks it in order.
         for sample in samples:
             rates = flat_outputs[cursor]
             cursor += 1
@@ -537,4 +602,5 @@ def smoke_validation_example(artifacts: RuntimeArtifacts) -> dict[str, Any]:
 
 
 def math_isfinite(value: float) -> bool:
+    """Return False for NaN (``value != value``) and +/-inf."""
     return value == value and value not in (float("inf"), float("-inf"))

@@ -5,6 +5,10 @@
 
 import Foundation
 
+// MARK: - Routes API wire models
+
+/// JSON body for `directions/v2:computeRoutes`. String fields carry Google enum values
+/// (e.g. `travelMode: "DRIVE"`).
 struct RoutesComputeRequest: Encodable {
     struct LatLng: Encodable {
         var latitude: Double
@@ -29,6 +33,9 @@ struct RoutesComputeRequest: Encodable {
     var units: String
 }
 
+/// Compute Routes response restricted to `GoogleRoutesService.fieldMask`.
+/// Every field is optional so partial responses decode; validation happens in the service.
+/// Durations are Google duration strings (e.g. `"1234s"`).
 struct RoutesComputeResponse: Decodable {
     struct Polyline: Decodable {
         var encodedPolyline: String?
@@ -57,6 +64,7 @@ struct RoutesComputeResponse: Decodable {
     var routes: [Route]?
 }
 
+/// Standard Google API error envelope (`{"error": {...}}`) returned on non-2xx responses.
 struct RoutesAPIErrorResponse: Decodable {
     struct Status: Decodable {
         var code: Int?
@@ -66,6 +74,8 @@ struct RoutesAPIErrorResponse: Decodable {
 
     var error: Status?
 }
+
+// MARK: - App-side route candidates
 
 /// One ordered step taken from Google Routes legs (already flattened).
 struct RouteStepCandidate: Equatable, Sendable {
@@ -84,7 +94,9 @@ struct RouteCandidateResult: Equatable, Sendable {
     var durationSeconds: Double?
     var distanceMeters: Int
     var routeLabels: [String]
+    /// Google's `DEFAULT_ROUTE`, or the first valid route when no labels were returned.
     var isDefault: Bool
+    /// Position in the raw Google response; used as a stable tie-breaker for ordering.
     var responseIndex: Int
     /// Flattened steps across all legs, preserving leg then step order.
     var steps: [RouteStepCandidate]

@@ -1,4 +1,10 @@
-"""Streaming PyTorch DataLoader for categorical crime-rate Parquet data."""
+"""Streaming PyTorch DataLoader for categorical crime-rate Parquet data.
+
+Each row is one (city, H3 cell, month, weekday, hour bin) aggregate with
+per-category incident counts and ``exposure_hours``. Train/val membership is
+a deterministic CRC32 hash of the record id, so splits are stable across
+runs and workers. Run as a script to execute a synthetic self-test.
+"""
 
 from __future__ import annotations
 
@@ -62,6 +68,11 @@ def make_record_id(
 
 
 def validation_assignment(record_id: str, seed: int, val_fraction: float) -> bool:
+    """Return True if the record belongs to the validation split.
+
+    Uses ``crc32(f"{seed}:{record_id}") < val_fraction * 2**32``. Raises
+    ``ValueError`` unless ``0 < val_fraction < 1``.
+    """
     if not 0.0 < val_fraction < 1.0:
         raise ValueError("val_fraction must be strictly between 0 and 1")
     key = f"{int(seed)}:{record_id}".encode("utf-8")
@@ -79,6 +90,12 @@ def _valid_mask(
     counts: np.ndarray,
     total: np.ndarray,
 ) -> np.ndarray:
+    """Return a boolean row mask for rows safe to train on.
+
+    Drops ``<UNK>`` (index 0) city/H3 rows, out-of-range calendar fields,
+    non-positive or non-finite exposure, negative/non-finite counts, and rows
+    whose ``total`` does not exactly equal the sum of the category counts.
+    """
     keep = np.ones(city_index.shape[0], dtype=bool)
     keep &= city_index >= 1
     keep &= h3_index >= 1
@@ -93,7 +110,21 @@ def _valid_mask(
 
 
 class CrimeRateIterableDataset(IterableDataset):
-    """Stream categorical crime-rate Parquet batches with CRC32 train/val split."""
+    """Stream categorical crime-rate Parquet batches with CRC32 train/val split.
+
+    ``split=None`` yields all valid rows. Parquet record batches are sharded
+    round-robin across DataLoader workers. With ``shuffle``, rows are permuted
+    only within each record batch (seeded by seed/epoch/batch index; call
+    ``set_epoch`` per epoch). Shuffle is forced off for ``split="val"``.
+
+    Each yielded item is a dict of scalar long tensors (``h3_cell_index``,
+    ``city_index``, ``month``, ``day_of_week``, ``hour_bin_start``), float32
+    ``counts`` ``[4]`` and ``exposure_hours``, plus ``record_id``, ``h3_cell``
+    and ``city_name`` strings.
+
+    Raises ``FileNotFoundError`` / ``ValueError`` at construction for a missing
+    file, invalid arguments, or missing required columns.
+    """
 
     def __init__(
         self,
@@ -133,6 +164,7 @@ class CrimeRateIterableDataset(IterableDataset):
             self.shuffle = False
 
     def set_epoch(self, epoch: int) -> None:
+        """Set the epoch used to vary the shuffle order."""
         self.epoch = int(epoch)
 
     def __iter__(self) -> Iterator[dict[str, object]]:
@@ -156,6 +188,7 @@ class CrimeRateIterableDataset(IterableDataset):
         record_batch: pa.RecordBatch,
         batch_index: int,
     ) -> Iterator[dict[str, object]]:
+        """Filter, split and optionally shuffle one record batch, yielding per-row dicts."""
         table = pa.Table.from_batches([record_batch])
         city_index = np.asarray(
             table["city_index"].to_numpy(zero_copy_only=False), dtype=np.int64
@@ -271,6 +304,13 @@ def create_crime_rate_dataloader(
     batch_rows: int = 65_536,
     pin_memory: bool | None = None,
 ) -> DataLoader:
+    """Build a DataLoader over ``CrimeRateIterableDataset``.
+
+    Shuffling is done inside the dataset (the DataLoader's own ``shuffle`` is
+    always False) and is disabled for ``split="val"``. ``pin_memory=None``
+    enables pinning when CUDA is available. Raises ``ValueError`` for
+    ``batch_size <= 0`` or negative ``num_workers``.
+    """
     if batch_size <= 0:
         raise ValueError("batch_size must be greater than zero")
     if num_workers < 0:
@@ -310,6 +350,7 @@ def create_crime_rate_dataloader(
 
 
 def _write_synthetic_parquet(path: Path) -> list[str]:
+    """Write a small test Parquet (plus one invalid row); return valid record ids."""
     rows = []
     record_ids: list[str] = []
     city_map = {"alpha_city": 1, "beta_city": 2}
@@ -369,6 +410,7 @@ def _write_synthetic_parquet(path: Path) -> list[str]:
 
 
 def _self_test() -> None:
+    """Check dtypes, invalid-row filtering, and disjoint, reproducible splits."""
     with tempfile.TemporaryDirectory() as tmp:
         parquet_path = Path(tmp) / "synthetic.parquet"
         all_ids = set(_write_synthetic_parquet(parquet_path))

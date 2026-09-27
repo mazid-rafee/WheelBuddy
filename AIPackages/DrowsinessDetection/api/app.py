@@ -1,4 +1,16 @@
-"""FastAPI application for local drowsiness TCN inference."""
+"""FastAPI application for local drowsiness TCN inference.
+
+Endpoints:
+
+* ``GET /`` — service index with links.
+* ``GET /health`` — model/load status and the feature contract the client must
+  send (schema version, ordered feature names, window length, sampling rate).
+* ``POST /v1/drowsiness/predict`` — classify one window of per-frame feature
+  vectors. Guarded by ``X-API-Key`` when ``DROWSINESS_API_KEY`` is set.
+
+All errors are returned as an ``ErrorEnvelope`` JSON body
+(``{"error": {"code", "message", "details"}}``).
+"""
 
 from __future__ import annotations
 
@@ -37,7 +49,9 @@ logging.basicConfig(
 
 
 def _sanitize(value: object) -> object:
+    """Recursively replace NaN/inf floats with ``None`` so error details are valid JSON."""
     if isinstance(value, float):
+        # ``value != value`` is the NaN check.
         if value != value or value in (float("inf"), float("-inf")):
             return None
         return value
@@ -55,6 +69,7 @@ def _error_json(
     message: str,
     details: dict | None = None,
 ) -> JSONResponse:
+    """Build a ``JSONResponse`` with the standard ``ErrorEnvelope`` body."""
     payload = ErrorEnvelope(
         error=ErrorBody(
             code=code,
@@ -69,8 +84,14 @@ def _error_json(
 
 
 def create_app() -> FastAPI:
+    """Build the FastAPI app with lifespan model loading, error handlers and routes.
+
+    The checkpoint is loaded once at startup; if loading fails the
+    ``ModelUnavailableError`` propagates and the server does not start.
+    """
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Load settings and the model into ``app.state`` for the app's lifetime."""
         settings = load_settings()
         app.state.settings = settings
         if not settings.api_key:
@@ -109,6 +130,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Exception handlers map every error type onto the shared ErrorEnvelope:
+    # schema/contract violations -> 422, model not loaded -> 503,
+    # inference failures -> 500, other HTTP errors keep their status code.
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
@@ -156,6 +180,7 @@ def create_app() -> FastAPI:
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         detail = exc.detail
+        # Structured details (e.g. from require_api_key) keep their own code.
         if isinstance(detail, dict) and "code" in detail:
             return _error_json(
                 status_code=exc.status_code,
@@ -168,6 +193,9 @@ def create_app() -> FastAPI:
             message=str(detail),
         )
 
+    # Dependency for the predict route. Auth is skipped entirely when no API key is configured (local dev).
+    # Otherwise the X-API-Key header is compared in constant time; a missing
+    # or wrong key raises 401 with code "unauthorized".
     async def require_api_key(
         request: Request,
         x_api_key: str | None = Header(default=None, alias="X-API-Key"),
@@ -186,6 +214,7 @@ def create_app() -> FastAPI:
                 },
             )
 
+    # GET / : static service index pointing at docs, health and predict routes.
     @app.get("/", response_model=RootResponse)
     async def root() -> RootResponse:
         return RootResponse(
@@ -196,6 +225,10 @@ def create_app() -> FastAPI:
             predict="/v1/drowsiness/predict",
         )
 
+    # GET /health : always 200. Returns status="degraded" with empty contract
+    # fields when no model is loaded, otherwise status="ok" plus the feature
+    # contract (schema version, ordered feature_names, window_frames,
+    # sampling_rate_hz, class_names) clients should use to build requests.
     @app.get("/health", response_model=HealthResponse)
     async def health(request: Request) -> HealthResponse:
         service: InferenceService | None = getattr(request.app.state, "service", None)
@@ -231,6 +264,10 @@ def create_app() -> FastAPI:
             auth_required=bool(settings and settings.api_key),
         )
 
+    # POST /v1/drowsiness/predict : classify one window (see
+    # InferenceService.predict for the contract checks). Contract errors -> 422,
+    # no model -> 503; any unexpected exception is wrapped as
+    # InferenceFailureError -> 500.
     @app.post("/v1/drowsiness/predict", response_model=PredictResponse)
     async def predict(
         payload: PredictRequest,

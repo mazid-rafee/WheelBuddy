@@ -24,6 +24,7 @@ PointList = Sequence[Point]
 
 
 def points_are_finite(points: Iterable[Point]) -> bool:
+    """True if every point has at least 2 coordinates and finite ``x``/``y``."""
     for point in points:
         if len(point) < 2:
             return False
@@ -35,7 +36,11 @@ def points_are_finite(points: Iterable[Point]) -> bool:
 def eye_bounds(
     eye_points: PointList,
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Return ``(min_x, max_x, min_y, max_y)`` or ``None`` if invalid."""
+    """Return ``(min_x, max_x, min_y, max_y)`` or ``None`` if invalid.
+
+    Invalid means fewer than ``MIN_EYE_LANDMARK_POINTS`` points or any
+    non-finite coordinate.
+    """
     if len(eye_points) < MIN_EYE_LANDMARK_POINTS or not points_are_finite(eye_points):
         return None
     xs = [float(p[0]) for p in eye_points]
@@ -49,7 +54,10 @@ def bounding_box_ear(
     eye_min_y: float,
     eye_max_y: float,
 ) -> float:
-    """Existing EAR convention: bbox height / width."""
+    """Existing EAR convention: bbox height / width.
+
+    Returns NaN when width or height is ``<= EPS`` or non-finite.
+    """
     width = eye_max_x - eye_min_x
     height = eye_max_y - eye_min_y
     if width <= EPS or height <= EPS:
@@ -67,6 +75,11 @@ def pupil_relative(
     eye_min_y: float,
     eye_max_y: float,
 ) -> Tuple[float, float, bool]:
+    """Return the pupil position within the eye bbox as ``(rel_x, rel_y, ok)``.
+
+    ``rel_x``/``rel_y`` are clamped to ``[0, 1]``. On a degenerate bbox or any
+    non-finite input, returns ``(0.0, 0.0, False)``.
+    """
     width = eye_max_x - eye_min_x
     height = eye_max_y - eye_min_y
     if width <= EPS or height <= EPS:
@@ -89,7 +102,12 @@ def compute_one_eye(
     eye_points: Optional[PointList],
     pupil_point: Optional[Point],
 ) -> Dict[str, float]:
-    """Return eye_valid, EAR, and pupil_rel_x/y for one eye."""
+    """Return eye_valid, EAR, and pupil_rel_x/y for one eye.
+
+    Any failure (missing/invalid landmarks, degenerate bbox, missing or
+    unusable pupil) returns all four values as 0.0, so a valid EAR is never
+    reported without a valid pupil position.
+    """
     invalid = {
         "eye_valid": 0.0,
         "eye_aspect_ratio": 0.0,
@@ -145,7 +163,13 @@ def build_feature_row(
     right_eye_points: Optional[PointList] = None,
     right_pupil: Optional[Point] = None,
 ) -> List[float]:
-    """Assemble the canonical 12-D model input vector."""
+    """Assemble the canonical 12-D model input vector.
+
+    Values are ordered as ``DROWSINESS_FEATURE_NAMES``. Head pose angles are
+    passed through unchanged (units are whatever the caller supplies); any
+    non-finite value is replaced with 0.0. Returns ``empty_feature_row()``
+    when no face is detected.
+    """
     if not face_detected:
         return empty_feature_row()
 
@@ -175,6 +199,7 @@ def build_feature_row(
 
 
 def translate_points(points: PointList, dx: float, dy: float) -> List[Tuple[float, float]]:
+    """Shift every point by ``(dx, dy)``."""
     return [(float(p[0]) + dx, float(p[1]) + dy) for p in points]
 
 
@@ -185,6 +210,7 @@ def scale_points(
     origin_y: float,
     scale: float,
 ) -> List[Tuple[float, float]]:
+    """Scale every point about ``(origin_x, origin_y)`` by ``scale``."""
     return [
         (origin_x + (float(p[0]) - origin_x) * scale,
          origin_y + (float(p[1]) - origin_y) * scale)

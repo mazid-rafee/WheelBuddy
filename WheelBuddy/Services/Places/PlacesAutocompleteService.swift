@@ -16,14 +16,21 @@ final class PlacesAutocompleteService: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let client = PlacesClient.shared
+    /// Groups autocomplete requests with the following place-details fetch for Places billing.
     private var sessionToken = AutocompleteSessionToken()
     private var searchTask: Task<Void, Never>?
+    /// Incremented per `scheduleSearch`; results from older generations are discarded so a slow
+    /// earlier response can't overwrite newer predictions.
     private var searchGeneration = 0
 
     private let debounceNanoseconds: UInt64 = 300_000_000 // 300 ms
     private let maxPredictions = 5
     private let biasRadiusMeters: CLLocationDistance = 50_000
 
+    // MARK: - Public API
+
+    /// Cancels any pending search and clears predictions, loading, and error state.
+    /// Does not start a new billing session; call `resetSession()` for that.
     func clearResults() {
         searchTask?.cancel()
         searchTask = nil
@@ -41,6 +48,7 @@ final class PlacesAutocompleteService: ObservableObject {
     }
 
     /// Debounced autocomplete. Pass an empty query to clear predictions.
+    /// `biasCoordinate`, when valid, biases results toward a 50 km radius around it.
     func scheduleSearch(query: String, biasCoordinate: CLLocationCoordinate2D?) {
         searchTask?.cancel()
         searchGeneration += 1
@@ -69,6 +77,9 @@ final class PlacesAutocompleteService: ObservableObject {
         }
     }
 
+    /// Fetches ID, name, address, and coordinate for a chosen prediction, then ends the session.
+    /// - Throws: `PlacesAutocompleteError.incompletePlaceDetails` if ID, name, or a valid coordinate
+    ///   is missing (address falls back to the name), or the Places SDK error on failure.
     func fetchSelectedPlace(placeID: String) async throws -> SelectedPlace {
         let request = FetchPlaceRequest(
             placeID: placeID,
@@ -105,6 +116,10 @@ final class PlacesAutocompleteService: ObservableObject {
         }
     }
 
+    // MARK: - Networking
+
+    /// Runs one autocomplete request and publishes up to `maxPredictions` place suggestions
+    /// (non-place suggestions are dropped). No-ops if a newer search has started.
     private func performSearch(
         query: String,
         biasCoordinate: CLLocationCoordinate2D?,

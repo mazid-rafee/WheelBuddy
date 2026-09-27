@@ -10,8 +10,10 @@ import Foundation
 /// Shared Core Location access for Places bias and “Your location”.
 @MainActor
 final class UserLocationProvider: NSObject, ObservableObject {
+    /// Most recent one-shot fix (or cached `manager.location`); retained across failed updates.
     @Published private(set) var coordinate: CLLocationCoordinate2D?
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
+    /// User-facing hint set when location access is denied or restricted.
     @Published private(set) var locationDeniedMessage: String?
 
     private let manager = CLLocationManager()
@@ -33,6 +35,8 @@ final class UserLocationProvider: NSObject, ObservableObject {
         locationDeniedMessage = nil
     }
 
+    /// Prompts for When-In-Use permission if undetermined, otherwise requests a single location
+    /// fix (`requestLocation`, not continuous updates). Sets `locationDeniedMessage` when blocked.
     func requestWhenInUseIfNeeded() {
         locationDeniedMessage = nil
         switch manager.authorizationStatus {
@@ -47,6 +51,7 @@ final class UserLocationProvider: NSObject, ObservableObject {
         }
     }
 
+    /// Adopts Core Location's cached fix without a new request; leaves `coordinate` untouched if none.
     func refreshCachedLocation() {
         if let location = manager.location, CLLocationCoordinate2DIsValid(location.coordinate) {
             coordinate = location.coordinate
@@ -66,6 +71,7 @@ final class UserLocationProvider: NSObject, ObservableObject {
     }
 }
 
+// Delegate callbacks are nonisolated and hop to the main actor before touching published state.
 extension UserLocationProvider: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in

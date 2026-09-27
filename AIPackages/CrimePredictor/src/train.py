@@ -1,4 +1,12 @@
-"""Train categorical CrimeRateMLP for exposure-aware crime-rate prediction."""
+"""Train categorical CrimeRateMLP for exposure-aware crime-rate prediction.
+
+The model predicts per-hour rates; the loss compares ``rates`` against
+observed ``counts`` given ``exposure_hours``. Each epoch writes ``last.pt``;
+the lowest validation Poisson deviance is saved as ``best.pt`` (the file
+name ``inference.py`` and the API load by default from ``src/saved_weights``). Also writes
+``split_summary.json`` and ``training_history.json`` to ``--output-dir``.
+Training stops early after ``--patience`` epochs without improvement.
+"""
 
 from __future__ import annotations
 
@@ -88,6 +96,12 @@ def sha256_file(path: Path) -> str:
 
 
 def load_vocabularies(metadata_dir: Path) -> tuple[dict[str, int], dict[str, int], dict[str, object]]:
+    """Load city/H3 vocabularies and return ``(city_to_index, h3_to_index, meta)``.
+
+    ``meta`` holds file paths, SHA-256 checksums (stored in checkpoints and
+    verified at inference) and embedding sizes. Raises ``RuntimeError`` if a
+    vocabulary is not ``<UNK>``=0 followed by sorted keys.
+    """
     city_path = metadata_dir / "city_to_index.json"
     h3_path = metadata_dir / "h3_cell_to_index.json"
     city_to_index = {str(k): int(v) for k, v in load_json_mapping(city_path).items()}
@@ -137,6 +151,12 @@ def scan_parquet_split_statistics(
     seed: int,
     batch_rows: int = 65_536,
 ) -> tuple[Counter[str], Counter[str], dict[str, float]]:
+    """Full pass over the Parquet to count rows per city per split.
+
+    Also returns training-split baseline rates (count sum / exposure sum per
+    category and total). Uses the same record-id hash as the DataLoader, but
+    a lighter row filter (empty city, UNK indices and exposure only).
+    """
     train_city_counts: Counter[str] = Counter()
     val_city_counts: Counter[str] = Counter()
     train_count_sums = np.zeros(len(COUNT_COLUMNS), dtype=np.float64)
@@ -288,6 +308,12 @@ def run_epoch(
     desc: str,
     total_batches: int | None,
 ) -> dict[str, object]:
+    """Run one train (``optimizer`` given) or eval (``optimizer=None``) pass.
+
+    Training clips gradient norm to 5.0. Returns the record-weighted mean
+    ``loss`` merged with ``CrimeRateMetrics`` results. Raises ``RuntimeError``
+    if the loader yields no records.
+    """
     training = optimizer is not None
     model.train(training)
     non_blocking = device.type == "cuda"
@@ -455,6 +481,7 @@ def load_resume_checkpoint(
 
 
 def main() -> None:
+    """Train end to end: split stats, model setup, optional resume, epoch loop, checkpoints."""
     args = parse_args()
     if not 0.0 < args.val_fraction < 1.0:
         raise ValueError("--val-fraction must be strictly between 0 and 1")

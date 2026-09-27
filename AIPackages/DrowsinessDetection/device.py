@@ -26,8 +26,10 @@ def resolve_device(
     gpu_id:
         Physical CUDA device index. Default is ``1``.
     require_cuda:
-        If True and CUDA is unavailable (or ``gpu_id`` is out of range),
-        raise ``RuntimeError`` instead of silently falling back to CPU.
+        If True, raise ``RuntimeError`` when CUDA is unavailable or ``gpu_id``
+        is out of range, and ``ValueError`` when ``gpu_id < 0``. If False, fall
+        back to CPU when CUDA is unavailable or ``gpu_id < 0``; an out-of-range
+        ``gpu_id`` still raises ``ValueError``.
     """
     if not torch.cuda.is_available():
         if require_cuda:
@@ -77,7 +79,11 @@ def to_device(
     dtype: Optional[torch.dtype] = None,
     non_blocking: Optional[bool] = None,
 ) -> torch.Tensor:
-    """Move a tensor to ``device`` with CUDA-friendly ``non_blocking`` defaults."""
+    """Move a tensor to ``device`` with CUDA-friendly ``non_blocking`` defaults.
+
+    An ``int`` device is resolved via ``resolve_device`` (which requires CUDA);
+    ``non_blocking`` defaults to True only for CUDA targets.
+    """
     if isinstance(device, int):
         device = resolve_device(device)
     elif isinstance(device, str):

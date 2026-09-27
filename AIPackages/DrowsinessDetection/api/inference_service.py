@@ -1,4 +1,9 @@
-"""Checkpoint loading and single-window prediction for the API."""
+"""Checkpoint loading and single-window prediction for the API.
+
+Wraps the importable helpers in ``inference.py`` and enforces the exact
+training contract (schema version, feature names/order, window length,
+sampling rate) on every request before running the TCN.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +22,8 @@ from api.schemas import PredictRequest, PredictResponse
 logger = logging.getLogger("drowsiness.api")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+# Make package-root modules (inference, feature_contract, ...) importable when
+# the API is launched from elsewhere.
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
 
@@ -36,19 +43,23 @@ from label_contract import CLASS_TO_IDX, IDX_TO_CLASS, NUM_CLASSES  # noqa: E402
 
 
 class ModelUnavailableError(RuntimeError):
+    """Checkpoint could not be loaded or no model is loaded (HTTP 503)."""
+
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.code = "model_unavailable"
 
 
 class InferenceFailureError(RuntimeError):
+    """Model forward pass or output validation failed (HTTP 500)."""
+
     def __init__(self, message: str, *, code: str = "internal_inference_failure") -> None:
         super().__init__(message)
         self.code = code
 
 
 class ContractError(ValueError):
-    """Request is syntactically valid JSON but incompatible with the model contract."""
+    """Request is syntactically valid JSON but incompatible with the model contract (HTTP 422)."""
 
     def __init__(self, message: str, *, code: str = "contract_error") -> None:
         super().__init__(message)
@@ -58,6 +69,12 @@ class ContractError(ValueError):
 
 @dataclass
 class LoadedModel:
+    """The loaded model plus the contract it was trained with.
+
+    ``standardizer`` is the checkpoint's ``FeatureStandardizer``; ``load_id``
+    increments on every load and is used to detect mid-request reloads.
+    """
+
     model: torch.nn.Module
     device: torch.device
     checkpoint_path: Path
@@ -78,6 +95,11 @@ class InferenceService:
     """Owns the single loaded TCN and enforces the exact training contract."""
 
     def __init__(self, settings: Settings) -> None:
+        """Load the checkpoint from ``settings.checkpoint_path`` onto the resolved device.
+
+        Raises ``ModelUnavailableError`` for any load failure (missing file,
+        schema v3 contract violation, or other error).
+        """
         global _LOAD_COUNTER
         device = resolve_device(settings.device_preference)
         try:
@@ -98,6 +120,7 @@ class InferenceService:
         class_names = [IDX_TO_CLASS[i] for i in range(NUM_CLASSES)]
         standardizer = checkpoint["_standardizer"]
         sampling_rate = checkpoint.get("sampling_rate_hz")
+        # Precedence: env override > checkpoint value > 15 Hz default.
         if settings.expected_sampling_rate_hz is not None:
             sampling_rate = settings.expected_sampling_rate_hz
         elif sampling_rate is None:
@@ -129,6 +152,7 @@ class InferenceService:
         return self._predict_call_count
 
     def metadata(self) -> dict[str, Any]:
+        """Return model/contract info used by startup logging and ``/health``."""
         loaded = self._loaded
         return {
             "model_version": loaded.model_version,
@@ -144,6 +168,12 @@ class InferenceService:
         }
 
     def _validate_contract(self, request: PredictRequest) -> None:
+        """Raise ``ContractError`` unless the request matches the training contract.
+
+        Checks, in order: schema version, ``len(samples) == window_frames``,
+        feature name count, exact feature name order, per-sample value count,
+        and (when known) an exact ``sampling_rate_hz`` match.
+        """
         loaded = self._loaded
         schema = request.resolved_schema_version
         if schema in LEGACY_SCHEMA_VERSIONS or str(schema) != FEATURE_SCHEMA_VERSION:
@@ -190,6 +220,19 @@ class InferenceService:
                 )
 
     def predict(self, request: PredictRequest) -> PredictResponse:
+        """Classify one window of raw features.
+
+        ``request.samples`` is a ``[window_frames, FEATURE_COUNT]`` matrix in
+        ``DROWSINESS_FEATURE_NAMES`` order. It is standardized with the
+        checkpoint statistics, batched to ``[1, T, F]`` and passed through the
+        TCN; the response carries the argmax label, its confidence and the full
+        softmax distribution keyed by class name.
+
+        Raises ``ContractError`` for request/contract problems (including
+        non-finite feature values) and ``InferenceFailureError`` for model
+        errors or invalid outputs (non-finite, wrong class count, probabilities
+        not summing to ~1).
+        """
         self._validate_contract(request)
         loaded = self._loaded
         self._predict_call_count += 1

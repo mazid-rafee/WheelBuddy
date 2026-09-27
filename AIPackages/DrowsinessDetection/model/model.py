@@ -79,7 +79,13 @@ class TemporalBlock(nn.Module):
 
 
 class GazeZoneTCN(nn.Module):
-    """Small causal TCN for short drowsiness-feature windows."""
+    """Small causal TCN for short drowsiness-feature windows.
+
+    Input ``[batch, T, input_dim]`` float features (standardized, in
+    ``DROWSINESS_FEATURE_NAMES`` order); output ``[batch, num_classes]``
+    logits taken from the last timestep. Constructor raises ``ValueError`` on
+    invalid hyperparameters.
+    """
 
     def __init__(
         self,
@@ -139,7 +145,12 @@ class GazeZoneTCN(nn.Module):
         nn.init.zeros_(self.classifier.bias)
 
     def forward(self, features: Tensor) -> Tensor:
-        """Return raw class logits for ``[batch, T, F]`` (or ``[batch, F]``)."""
+        """Return raw class logits for ``[batch, T, F]`` (or ``[batch, F]``).
+
+        A 2-D input is treated as a single-timestep window. Raises
+        ``TypeError`` for non-float input and ``ValueError`` for a wrong shape
+        or empty time dimension.
+        """
         if not features.is_floating_point():
             raise TypeError(
                 f"features must be floating point, got dtype {features.dtype}"
@@ -159,6 +170,7 @@ class GazeZoneTCN(nn.Module):
         x = F.relu(self.input_proj(x))
         for block in self.temporal_blocks:
             x = block(x)
+        # Causal padding means the last timestep has seen the whole window.
         last = x[:, :, -1]
         return self.classifier(last)
 
@@ -202,7 +214,11 @@ def build_model(
 
 
 def main() -> None:
-    """Run a small forward/backward smoke test on CUDA GPU 1 when available."""
+    """Run a small forward/backward smoke test on CUDA GPU 1 when available.
+
+    Falls back to CPU only when CUDA is unavailable; an out-of-range GPU index
+    still raises (see ``device.resolve_device``).
+    """
     from device import DEFAULT_GPU_ID, configure_cuda, resolve_device
     from label_contract import NUM_CLASSES
 

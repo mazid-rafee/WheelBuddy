@@ -11,6 +11,11 @@ import Vision
 /// Formulas must stay identical to Python `feature_math.py`
 /// (`drowsiness_feature_schema_v3`). Eyelid-gap ratios are not part of the model input.
 enum DrowsinessFeatureExtractor {
+    /// Builds one feature row from the largest detected face (assumed to be the driver).
+    ///
+    /// Never fails: with no face, every value is 0 (a masked row) so the temporal stream stays
+    /// dense. Head pose is Vision's yaw/pitch/roll in radians (0 when unavailable). Any
+    /// non-finite value is replaced with 0.
     static func makeSample(
         faces: [VNFaceObservation],
         hands: [VNHumanHandPoseObservation] = [],
@@ -67,6 +72,7 @@ enum DrowsinessFeatureExtractor {
     }
 
     /// Pure math entry point for fixture parity tests (image-space points).
+    /// Produces the same value layout and sanitization as `makeSample`.
     static func featuresFromImageSpace(
         faceDetected: Bool,
         yaw: Double,
@@ -103,6 +109,7 @@ enum DrowsinessFeatureExtractor {
 
     // MARK: - Geometry
 
+    /// Per-eye features. `valid` is 1.0/0.0; when invalid, all fields are 0.
     private struct EyeLocalFeatures {
         var valid: Double
         var aspectRatio: Double
@@ -117,6 +124,8 @@ enum DrowsinessFeatureExtractor {
         )
     }
 
+    /// Vision adapter: maps face-relative landmark regions into image space, then defers to the
+    /// point-based overload so both entry points share one formula.
     private static func eyeLocalFeatures(
         region: VNFaceLandmarkRegion2D?,
         pupil: VNFaceLandmarkRegion2D?,
@@ -133,6 +142,12 @@ enum DrowsinessFeatureExtractor {
         return eyeLocalFeatures(points: points, pupil: pupilPoint)
     }
 
+    /// Eye openness and gaze proxy from the eye contour's axis-aligned bounding box:
+    /// - aspect ratio = box height / box width
+    /// - pupil rel x/y = pupil position within the box, clamped to [0, 1]
+    ///
+    /// The whole eye is marked invalid if there are too few points, the box is degenerate,
+    /// any value is non-finite, or the pupil is missing.
     private static func eyeLocalFeatures(
         points: [CGPoint],
         pupil: CGPoint?

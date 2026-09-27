@@ -20,6 +20,8 @@ struct RoutePredictionRequest: Codable, Sendable {
 
 // MARK: - Response
 
+/// `/predict-routes` response; `requestID` and route IDs are validated against the request
+/// by `CrimePredictionService`.
 struct RoutePredictionResponse: Codable, Sendable, Equatable {
     let requestID: String
     let modelVersion: String
@@ -32,6 +34,7 @@ struct RoutePredictionResponse: Codable, Sendable, Equatable {
     }
 }
 
+/// Model output for one route, keyed by the `route_id` sent in the request.
 struct RoutePrediction: Codable, Sendable, Equatable {
     let routeID: String
     /// Total H3 cells along the densified route (including OOV skips).
@@ -59,6 +62,8 @@ struct RoutePrediction: Codable, Sendable, Equatable {
     }
 }
 
+/// Server-side aggregates of per-cell predictions. `sum` is the fallback route risk used by
+/// `RouteRiskScorer` when per-cell P90 values are unavailable.
 struct RoutePredictionSummary: Codable, Sendable, Equatable {
     let mean: Double
     let maximum: Double
@@ -131,6 +136,7 @@ struct CellPrediction: Codable, Sendable, Equatable {
 
 // MARK: - FastAPI error envelope
 
+/// Error body returned by CrimePredictor on non-2xx responses (`{"error": {...}}`).
 struct CrimeAPIErrorEnvelope: Codable, Sendable {
     let error: CrimeAPIErrorBody
 }
@@ -155,6 +161,7 @@ struct CrimeAPIErrorDetails: Codable, Sendable {
     let routes: [CrimeAPIRouteCellStats]?
 }
 
+/// Per-route H3 coverage stats attached to errors, useful for diagnosing out-of-vocabulary routes.
 struct CrimeAPIRouteCellStats: Codable, Sendable {
     let routeID: String
     let cellCount: Int
@@ -171,6 +178,7 @@ struct CrimeAPIRouteCellStats: Codable, Sendable {
 
 // MARK: - Session state
 
+/// Lifecycle of a crime prediction request; `failed` carries a human-readable error message.
 enum RoutePredictionState: Equatable {
     case idle
     case loading

@@ -1,4 +1,9 @@
-"""Runtime configuration for the drowsiness inference API."""
+"""Runtime configuration for the drowsiness inference API.
+
+Settings are read from environment variables: ``DROWSINESS_CHECKPOINT_PATH``,
+``DROWSINESS_API_KEY``, ``DROWSINESS_DEVICE``, ``DROWSINESS_HOST``,
+``DROWSINESS_PORT`` and ``DROWSINESS_SAMPLING_RATE_HZ``.
+"""
 
 from __future__ import annotations
 
@@ -23,6 +28,8 @@ ENV_SAMPLING_RATE = "DROWSINESS_SAMPLING_RATE_HZ"
 
 @dataclass(frozen=True)
 class Settings:
+    """Resolved API settings; ``api_key=None`` disables authentication."""
+
     package_root: Path
     checkpoint_path: Path
     api_key: str | None
@@ -37,7 +44,11 @@ def _env(name: str, default: str = "") -> str:
 
 
 def resolve_checkpoint_path(raw: str | None = None) -> Path:
-    """Resolve checkpoint path relative to the DrowsinessDetection package root."""
+    """Resolve checkpoint path relative to the DrowsinessDetection package root.
+
+    Uses ``raw`` if given, else ``DROWSINESS_CHECKPOINT_PATH``, else
+    ``DEFAULT_CHECKPOINT_RELATIVE``. Existence is not checked here.
+    """
     value = (raw if raw is not None else _env("DROWSINESS_CHECKPOINT_PATH")).strip()
     if not value:
         value = DEFAULT_CHECKPOINT_RELATIVE
@@ -50,6 +61,11 @@ def resolve_checkpoint_path(raw: str | None = None) -> Path:
 
 
 def resolve_device(preference: str | None = None) -> torch.device:
+    """Map a device preference (or ``DROWSINESS_DEVICE``) to a ``torch.device``.
+
+    ``"auto"`` picks CUDA when available, else CPU. Any other value is passed
+    to ``torch.device`` as-is (invalid strings raise there).
+    """
     pref = (preference if preference is not None else _env("DROWSINESS_DEVICE", DEFAULT_DEVICE))
     pref = pref.strip().lower() or DEFAULT_DEVICE
     if pref == "auto":
@@ -58,6 +74,11 @@ def resolve_device(preference: str | None = None) -> torch.device:
 
 
 def load_settings() -> Settings:
+    """Build ``Settings`` from the environment.
+
+    Raises ``ValueError`` if ``DROWSINESS_SAMPLING_RATE_HZ`` or
+    ``DROWSINESS_PORT`` cannot be parsed, or the sampling rate is not positive.
+    """
     api_key = _env("DROWSINESS_API_KEY")
     sampling_raw = _env(ENV_SAMPLING_RATE)
     expected_rate: float | None

@@ -5,10 +5,15 @@
 
 import Foundation
 
+/// Failures surfaced by `DrowsinessAPIClient.predict(_:)`. Cancellation is not represented here;
+/// it is rethrown as `CancellationError`.
 enum DrowsinessAPIClientError: LocalizedError, Sendable {
     case invalidResponse
+    /// Non-2xx status whose body was not a structured error envelope (raw body text included).
     case httpStatus(Int, String)
+    /// Non-2xx status with a decodable `DrowsinessAPIErrorEnvelope`.
     case apiError(code: String, message: String)
+    /// 2xx response whose body did not decode as `DrowsinessPredictResponse`.
     case decoding(Error)
 
     var errorDescription: String? {
@@ -25,11 +30,15 @@ enum DrowsinessAPIClientError: LocalizedError, Sendable {
     }
 }
 
+/// Stateless HTTP client for the remote drowsiness `/predict` endpoint.
+/// Dates are encoded/decoded as ISO-8601.
 final class DrowsinessAPIClient: Sendable {
     private let session: URLSession
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
+    /// - Parameter session: Injectable for tests. The default is an ephemeral session with short
+    ///   timeouts (4s request / 6s resource) that fails fast rather than waiting for connectivity.
     init(session: URLSession? = nil) {
         if let session {
             self.session = session
@@ -49,6 +58,9 @@ final class DrowsinessAPIClient: Sendable {
         self.decoder = decoder
     }
 
+    /// POSTs one feature window as JSON, adding `X-API-Key` when a key is configured.
+    /// - Throws: `CancellationError` if the task or URL load is cancelled, `URLError` for other
+    ///   transport failures, encoding errors, or a `DrowsinessAPIClientError`.
     func predict(_ request: DrowsinessPredictRequest) async throws -> DrowsinessPredictResponse {
         var urlRequest = URLRequest(url: DrowsinessAPIConfiguration.predictURL)
         urlRequest.httpMethod = "POST"
@@ -61,6 +73,7 @@ final class DrowsinessAPIClient: Sendable {
 
         let data: Data
         let response: URLResponse
+        // Normalize URLSession cancellation so callers only need to handle `CancellationError`.
         do {
             (data, response) = try await session.data(for: urlRequest)
         } catch is CancellationError {

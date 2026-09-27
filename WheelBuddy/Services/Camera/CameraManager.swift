@@ -6,6 +6,7 @@
 import AVFoundation
 import Foundation
 
+/// User-presentable camera setup failures (permission or session configuration).
 enum CameraError: LocalizedError, Equatable {
     case permissionDenied
     case permissionRestricted
@@ -34,13 +35,18 @@ enum CameraError: LocalizedError, Equatable {
 
 /// Owns a single AVCaptureSession and delivers frames off the main thread.
 /// Defaults to the front camera so Milestone 1 behavior is unchanged.
+///
+/// `@unchecked Sendable`: all session configuration and start/stop happen on the serial
+/// `sessionQueue`; frames are delivered on `videoOutputQueue`.
 nonisolated final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let position: AVCaptureDevice.Position
     private let session = AVCaptureSession()
+    /// Serial queue for all blocking AVCaptureSession work (configure / start / stop).
     private let sessionQueue = DispatchQueue(label: "com.wheelbuddy.camera.session")
     private let videoOutput = AVCaptureVideoDataOutput()
     private let videoOutputQueue = DispatchQueue(label: "com.wheelbuddy.camera.frames", qos: .userInitiated)
 
+    /// Only accessed on `sessionQueue`; the session is configured once and reused across restarts.
     private var isConfigured = false
 
     /// Called on `videoOutputQueue` with each delivered pixel buffer.
@@ -56,6 +62,11 @@ nonisolated final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleB
         super.init()
     }
 
+    // MARK: - Lifecycle
+
+    /// Requests camera permission if needed, then configures (first time only) and starts the session.
+    /// Completion runs on the main queue. If the manager is deallocated before configuration runs
+    /// (e.g. while the permission prompt is showing), completion is never called.
     func requestAccessAndStart(completion: @escaping (Result<Void, CameraError>) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -107,6 +118,8 @@ nonisolated final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleB
         }
     }
 
+    // MARK: - Configuration
+
     private func configureAndStart(completion: @escaping (Result<Void, CameraError>) -> Void) {
         sessionQueue.async { [weak self] in
             guard let self else { return }
@@ -136,6 +149,8 @@ nonisolated final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleB
         }
     }
 
+    /// Must run on `sessionQueue`. Wide-angle camera at `.medium` preset, 32BGRA output,
+    /// late frames discarded, rotated 90° to portrait where supported.
     private func configureSession() throws {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
@@ -179,6 +194,8 @@ nonisolated final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleB
             }
         }
     }
+
+    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 
     func captureOutput(
         _ output: AVCaptureOutput,

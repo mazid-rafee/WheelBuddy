@@ -6,6 +6,9 @@
 import CoreLocation
 import Foundation
 
+// MARK: - Errors
+
+/// Failures surfaced by `GoogleRoutesService`; `errorDescription` is user-presentable.
 enum GoogleRoutesError: LocalizedError {
     case missingAPIKey
     case invalidCoordinates
@@ -32,8 +35,12 @@ enum GoogleRoutesError: LocalizedError {
     }
 }
 
+// MARK: - Service
+
 /// Google Routes API v2 Compute Routes client.
 actor GoogleRoutesService {
+    /// Response field mask sent as `X-Goog-FieldMask`. Only these fields are returned by Google,
+    /// so any new field read from `RoutesComputeResponse` must also be added here.
     static let fieldMask = [
         "routes.distanceMeters",
         "routes.duration",
@@ -53,8 +60,13 @@ actor GoogleRoutesService {
         self.session = session
     }
 
+    // MARK: Public API
+
     /// Returns every driving route candidate, with the default route first.
     /// Captures a single departure timestamp immediately before the network request.
+    /// - Throws: `GoogleRoutesError` for invalid input, missing key, non-2xx status (using Google's
+    ///   error message when parseable), or undecodable / empty responses. Transport errors from
+    ///   `URLSession` are propagated unchanged.
     func computeDrivingRoutes(
         from origin: CLLocationCoordinate2D,
         to destination: CLLocationCoordinate2D
@@ -122,8 +134,13 @@ actor GoogleRoutesService {
         }
     }
 
+    // MARK: Parsing
+
     /// Decodes Routes API JSON into map-ready candidates with extraction metadata.
     /// Exposed for unit tests via the same decoding path the live client uses.
+    /// Routes lacking a polyline or distance are dropped; routes with incomplete step/duration
+    /// data are kept for display but marked `isExtractionReady == false`.
+    /// - Throws: `GoogleRoutesError.emptyRoutes` if no usable route remains.
     static func decodeCandidates(from data: Data) throws -> [RouteCandidateResult] {
         let decoded = try JSONDecoder().decode(RoutesComputeResponse.self, from: data)
         let rawRoutes = decoded.routes ?? []
@@ -140,6 +157,7 @@ actor GoogleRoutesService {
                 continue
             }
 
+            // IDs use the raw response index, so skipped routes leave gaps (e.g. route_0, route_2).
             let routeID = "route_\(index)"
             let labels = route.routeLabels ?? []
             let durationSeconds = GoogleDurationParser.parseSeconds(route.duration)
@@ -186,6 +204,7 @@ actor GoogleRoutesService {
             candidates[0].isDefault = true
         }
 
+        // Default route first; alternatives keep Google's response order.
         candidates.sort { lhs, rhs in
             if lhs.isDefault != rhs.isDefault {
                 return lhs.isDefault && !rhs.isDefault
@@ -201,6 +220,8 @@ actor GoogleRoutesService {
     }
 
     /// Flattens `legs[].steps[]` in leg order, then step order within each leg.
+    /// Stops at the first missing/malformed leg or step and returns `isValid == false` along with
+    /// the steps collected so far; callers should not use a partial step list.
     static func flattenSteps(
         from route: RoutesComputeResponse.Route,
         routeID: String
@@ -244,6 +265,9 @@ actor GoogleRoutesService {
         return (steps, true)
     }
 
+    // MARK: Helpers
+
+    /// Extracts `error.message` from a Google API error body, or `nil` if the body isn't that shape.
     private static func parseErrorMessage(from data: Data) -> String? {
         guard let payload = try? JSONDecoder().decode(RoutesAPIErrorResponse.self, from: data) else {
             return nil
@@ -252,6 +276,7 @@ actor GoogleRoutesService {
     }
 
     /// Converts parsed seconds into a short display value.
+    /// Leftover minutes are rounded up; falls back to the raw API string (or "--") when unparsed.
     private static func displayDuration(fromSeconds seconds: Double?, raw: String?) -> String {
         guard let seconds else { return raw ?? "--" }
         let wholeSeconds = Int(seconds.rounded(.towardZero))
@@ -264,10 +289,13 @@ actor GoogleRoutesService {
     }
 }
 
+// MARK: - Configuration
+
 enum RoutesAPIConfiguration {
     private static let placeholder = "REPLACE_WITH_ROUTES_API_KEY"
 
-    /// Reads the Routes API key from Info.plist (`RoutesAPIKey`), populated via Secrets.xcconfig.
+    /// Reads the Routes API key from Info.plist (`RoutesAPIKey`, then `ROUTES_API_KEY`), populated via Secrets.xcconfig.
+    /// Returns an empty string when unset or still the placeholder value.
     static var apiKey: String {
         let candidates = [
             Bundle.main.object(forInfoDictionaryKey: "RoutesAPIKey") as? String,
