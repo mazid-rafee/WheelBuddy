@@ -239,11 +239,8 @@ final class ADASAlertManager: ObservableObject {
         case .none:
             break
         case .driverNoFace:
-            #if DEBUG
-            print("[ADASAudio] play noFace")
-            #endif
-            playBeepBeep(kind: .soft, gap: 0.14)
-            startRepeatTimer(interval: Self.noFaceRepeatInterval)
+            // Intentionally silent: the "Driver not detected" banner is visual-only.
+            break
         case .driverWakeUp:
             #if DEBUG
             print("[ADASAudio] wakeUp active (one-shot beep owned by DriveView)")
@@ -296,10 +293,7 @@ final class ADASAlertManager: ObservableObject {
         case .none:
             break
         case .driverNoFace:
-            #if DEBUG
-            print("[ADASAudio] play noFace")
-            #endif
-            playBeepBeep(kind: .soft, gap: 0.14)
+            break
         case .driverWakeUp:
             #if DEBUG
             print("[ADASAudio] play wakeUp")
