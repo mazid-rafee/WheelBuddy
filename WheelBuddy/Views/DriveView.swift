@@ -207,7 +207,7 @@ struct DriveView: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
-            Text("Wheel Buddy")
+            Text("WheelBuddy")
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.primary)
 
