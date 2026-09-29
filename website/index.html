@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071917">
+  <meta name="description" content="WheelBuddy is an iPhone driving companion that helps you compare routes by estimated crime risk and stay aware with real-time driver and road alerts.">
+  <meta property="og:title" content="WheelBuddy — A calmer way to get there">
+  <meta property="og:description" content="Know more before you go. Stay aware along the way.">
+  <meta property="og:type" content="website">
+  <title>WheelBuddy — A calmer way to get there</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" id="top">
+    <nav class="nav shell" aria-label="Main navigation">
+      <a class="brand" href="#top" aria-label="WheelBuddy home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M7 23.5 10.1 16a4 4 0 0 1 3.7-2.5h12.4a4 4 0 0 1 3.7 2.5l3.1 7.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M7.5 23h25v6.5a2 2 0 0 1-2 2h-21a2 2 0 0 1-2-2V23Z" stroke="currentColor" stroke-width="2.6"/><path d="M13 27.2h.1m13.8 0h.1" stroke="currentColor" stroke-width="3.8" stroke-linecap="round"/><path d="M17 18.5h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+        <span>Wheel<span class="brand-light">Buddy</span></span>
+      </a>
+      <button class="menu-toggle" type="button" aria-controls="nav-links" aria-expanded="false" aria-label="Open menu"><span></span><span></span></button>
+      <div class="nav-links" id="nav-links">
+        <a href="#why">Our story</a><a href="#experience">The experience</a><a href="#features">Features</a><a href="#behind-the-build">How it works</a><a href="https://github.com/mazid-rafee/WheelBuddy" target="_blank" rel="noopener noreferrer">Code</a>
+        <a class="nav-cta" href="#field-notes">See it in action <span aria-hidden="true">↗</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-grid shell">
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span class="pulse-dot"></span> Your road companion · ShellHacks 2026</p>
+          <h1 id="hero-title">A calmer way<br>to <em>get there.</em></h1>
+          <p class="hero-lede">Know more before you go. Stay aware along the way. WheelBuddy pairs route insights with real-time driving alerts, right on your iPhone.</p>
+          <div class="hero-actions"><a class="button button-primary" href="#experience">Explore WheelBuddy <span aria-hidden="true">↗</span></a><a class="text-link" href="#field-notes"><span class="play-ring" aria-hidden="true">▶</span> Watch real-world tests</a></div>
+          <div class="hero-note"><span class="line-icon" aria-hidden="true">✳</span><span>WheelBuddy began at ShellHacks 2026. Encouraged by our live tests, we’re refining the app with the goal of making it available to the public.</span></div>
+        </div>
+        <div class="hero-art reveal" aria-label="WheelBuddy app preview">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="floating-badge badge-top"><span class="badge-icon">◈</span><span><small>BEFORE THE DRIVE</small><strong>Compare your routes</strong></span></div>
+          <div class="phone-frame"><div class="phone-camera"></div><img src="media/app_landing_page.jpg" alt="WheelBuddy app landing screen" fetchpriority="high"><div class="phone-fallback" aria-hidden="true"><span class="mock-top">WheelBuddy <span>●</span></span><div class="mock-title">Drive with<br>confidence.</div><div class="mock-map"><i></i><b></b><em></em></div><div class="mock-card">Your next drive, thoughtfully planned <span>→</span></div></div></div>
+          <div class="floating-badge badge-bottom"><span class="badge-icon amber">◉</span><span><small>ON THE ROAD</small><strong>Stay in the know</strong></span></div>
+          <span class="art-coordinate">25°45′ N&nbsp;&nbsp; 80°11′ W</span>
+        </div>
+      </div>
+      <div class="hero-bottom shell"><span>Scroll to explore</span><span class="scroll-line" aria-hidden="true"></span><span>01 / 05</span></div>
+    </section>
+
+    <section class="story section shell" id="why" aria-labelledby="story-title">
+      <div class="section-kicker reveal"><span>01</span><span>WHY WE BUILT IT</span></div>
+      <div class="story-grid"><h2 id="story-title" class="display-title reveal">It started with<br>a <em>different drive.</em></h2><div class="story-copy reveal"><p>On a trip to the Smoky Mountains, we rented a car with modern driver assistance. We felt more aware and reassured behind the wheel. Back home in our older cars, we wondered whether the phone we already owned could help fill some of that gap.</p><p>We also wanted more context before setting out, especially after dark. The fastest route isn’t always the one we feel most comfortable taking.</p><p class="story-emphasis">So we built a companion for both decisions: choosing a route and driving it.</p></div></div>
+      <div class="evidence-card reveal"><div class="evidence-symbol" aria-hidden="true">↗</div><div><p class="mini-label">THE RESEARCH THAT INSPIRED US</p><p>Studies by IIHS associated forward collision warning with <strong>27% fewer rear-end striking crash involvements</strong> and lane departure warning with <strong>11% fewer single-vehicle, sideswipe and head-on crashes</strong> after adjustment. These are findings for the studied vehicle systems, not measured outcomes for WheelBuddy.</p></div><div class="evidence-links"><a href="https://www.iihs.org/research-areas/bibliography/ref/2111" target="_blank" rel="noopener noreferrer">Forward collision study ↗</a><a href="https://www.iihs.org/research-areas/bibliography/ref/2142" target="_blank" rel="noopener noreferrer">Lane departure study ↗</a></div></div>
+    </section>
+
+    <section class="experience section" id="experience" aria-labelledby="experience-title"><div class="shell">
+      <div class="section-kicker reveal"><span>02</span><span>SUPPORTING YOU ALL THROUGHOUT YOUR JOURNEY</span></div>
+      <div class="section-heading reveal"><h2 id="experience-title" class="display-title">Good decisions<br>travel <em>together.</em></h2><p>From choosing a route to navigating the road ahead, WheelBuddy helps you stay informed and aware throughout the drive.</p></div>
+      <div class="experience-panel reveal"><div class="experience-controls" role="tablist" aria-label="Explore WheelBuddy">
+        <button id="tab-plan" class="journey-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-plan" tabindex="0"><span class="tab-index">01 / BEFORE</span><span class="tab-title">Choose your way</span><span class="tab-arrow" aria-hidden="true">↗</span></button>
+        <button id="tab-drive" class="journey-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-drive" tabindex="-1"><span class="tab-index">02 / DURING</span><span class="tab-title">Stay with the road</span><span class="tab-arrow" aria-hidden="true">↗</span></button>
+      </div>
+      <div id="panel-plan" class="journey-panel is-active" role="tabpanel" aria-labelledby="tab-plan"><div class="journey-text"><span class="journey-label">FEEL SAFE FROM THE START</span><h3>More than<br>the fastest way.</h3><p>Compare available routes using estimated crime risk for the areas and time of travel. Explore route safety scores, crime categories, and how the estimates vary by hour.</p><ul class="check-list"><li>Route-by-route safety estimates</li><li>Risk broken down by category</li><li>Hourly insights for your departure</li></ul><a class="inline-link" href="#field-notes">Watch navigation test <span>↗</span></a></div><div class="journey-visual route-visual"><div class="map-grid"></div><svg class="route-lines" viewBox="0 0 560 470" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><path d="M-20 340 C110 345 100 90 245 115 S420 410 585 115" stroke="#2d4e48" stroke-width="14" stroke-linecap="round"/><path d="M-20 340 C90 330 148 250 237 248 S380 360 585 115" stroke="#81ecc4" stroke-width="8" stroke-linecap="round"/><path d="M-20 340 C85 325 95 170 255 208 S420 300 585 115" stroke="#73928b" stroke-width="5" stroke-linecap="round" stroke-dasharray="11 12"/></svg><div class="map-pin pin-a">A</div><div class="map-pin pin-b">B</div><div class="route-callout"><span class="route-callout-icon">✦</span><span><small>ROUTE INSIGHT</small><strong>Analyze safety of available routes</strong></span></div><span class="visual-caption">Illustrative route visual · app estimates vary by trip</span></div></div>
+      <div id="panel-drive" class="journey-panel" role="tabpanel" aria-labelledby="tab-drive" hidden><div class="journey-text"><span class="journey-label">AWARENESS IN MOTION</span><h3>Another set<br>of eyes on the road.</h3><p>Using both iPhone cameras, Drive Mode looks for road objects and signs that your attention may be drifting. It brings alerts into one clear driving view.</p><ul class="check-list"><li>Nearby vehicle and pedestrian warnings</li><li>Looking-away and prolonged eye-closure alerts</li><li>Lane assistance in active development</li></ul><a class="inline-link" href="#field-notes">Watch drive tests <span>↗</span></a></div><div class="journey-visual drive-visual"><div class="road-perspective"><div class="horizon"></div><div class="lane lane-left"></div><div class="lane lane-right"></div><div class="car-shape"></div></div><div class="hud hud-left"><span class="hud-dot"></span> DRIVER MONITORING <strong>Active</strong></div><div class="hud hud-right">ROAD STATUS <strong>Monitoring</strong></div><div class="detection-box"><span>VEHICLE AHEAD</span></div><span class="visual-caption">Illustrative driving visual · see real footage below</span></div></div>
+      </div>
+    </div></section>
+
+    <section class="features section shell" id="features" aria-labelledby="features-title"><div class="section-kicker reveal"><span>03</span><span>BUILT FOR THE WHOLE DRIVE</span></div><div class="section-heading reveal"><h2 id="features-title" class="display-title">The details that<br><em>make a difference.</em></h2><p>Practical signals at the moments they matter, designed to be easy to understand at a glance.</p></div>
+      <div class="feature-grid">
+        <article class="feature-card feature-large reveal"><span class="feature-number">01 / ROUTES</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 36V22a3 3 0 0 1 3-3h3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M36 12V26a3 3 0 0 1-3 3h-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="36" r="4.5" stroke="currentColor" stroke-width="2.2"/><circle cx="36" cy="12" r="4.5" stroke="currentColor" stroke-width="2.2"/><path d="M16 19c5 5 11 5 16 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><h3>Route safety<br>insights</h3><p>See estimated crime risk alongside travel choices, with category and hourly views that add context to the journey ahead.</p><span class="card-accent"></span></article>
+        <article class="feature-card reveal"><span class="feature-number">02 / ROAD</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 30h22l4-8h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="30" r="3" stroke="currentColor" stroke-width="2.2"/><circle cx="28" cy="30" r="3" stroke="currentColor" stroke-width="2.2"/><circle cx="36" cy="14" r="2.5" stroke="currentColor" stroke-width="2.2"/><path d="M36 16.5v8M33.5 20.5h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><h3>Road awareness</h3><p>On-device object detection watches for nearby vehicles and pedestrians.</p></article>
+        <article class="feature-card reveal"><span class="feature-number">03 / DRIVER</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 24c6-11 14-15 18-15s12 4 18 15c-6 11-14 15-18 15s-12-4-18-15Z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="24" r="6.5" stroke="currentColor" stroke-width="2.2"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/></svg></span><h3>Attention alerts</h3><p>Face orientation helps identify when the driver looks away for too long.</p></article>
+        <article class="feature-card reveal"><span class="feature-number">04 / DRIVER</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 24c0-6.6 5.4-12 12-12s12 5.4 12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14 24c3 2 7 2 10 0 3 2 7 2 10 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M30 10l3-3M33 10v-4M36 10h-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><h3>Drowsiness cues</h3><p>A temporal model detects prolonged eye closure and triggers audio and visual warnings.</p></article>
+        <article class="feature-card reveal"><span class="feature-number">05 / ROAD</span><span class="feature-icon" aria-hidden="true">∥</span><h3>Lane assistance</h3><p>On-device lane detection explores another way to notice drift. This feature is still being refined.</p></article>
+        <article class="feature-card reveal"><span class="feature-number">06 / DRIVE</span><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 8a16 16 0 0 1 0 32" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M24 8v16l9 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 24h4M36 24h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><h3>Speed monitor</h3><p>GPS shows your current speed in Drive Mode. During active navigation, Google Maps can supply an estimated posted limit, color cues when you’re over it, and a “Slow down” banner for major overspeed.</p></article>
+      </div>
+    </section>
+
+    <section class="field section" id="field-notes" aria-labelledby="field-title"><div class="shell"><div class="section-kicker reveal"><span>04</span><span>OUT IN THE REAL WORLD</span></div><div class="field-heading reveal"><div><h2 id="field-title" class="display-title">See it <em>in motion.</em></h2><p>Six clips from our live tests. Select a feature to watch how the prototype responds.</p></div></div><div class="filter-row reveal" role="group" aria-label="Filter videos"><button class="filter-button is-active" type="button" data-filter="all" aria-pressed="true">All tests <span>06</span></button><button class="filter-button" type="button" data-filter="route" aria-pressed="false">Route planning</button><button class="filter-button" type="button" data-filter="road" aria-pressed="false">Road awareness</button><button class="filter-button" type="button" data-filter="driver" aria-pressed="false">Driver monitoring</button></div>
+      <div class="video-grid" id="video-grid">
+        <button class="video-card reveal" type="button" data-category="route" data-video="media/live_test_videos/Road%20Safety%20Navigation.mp4" data-title="Road safety navigation" aria-label="Play road safety navigation test"><span class="video-art art-route"><span class="mini-route"></span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 01</span></span><span class="video-meta"><span><small>ROUTE PLANNING</small><strong>Road safety navigation</strong></span><span aria-hidden="true">↗</span></span></button>
+        <button class="video-card reveal" type="button" data-category="road" data-video="media/live_test_videos/Front%20Car%20Crash%20Safety.mp4" data-title="Forward vehicle warning" aria-label="Play forward vehicle warning test"><span class="video-art art-forward"><span class="scan-lines"></span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 02</span></span><span class="video-meta"><span><small>ROAD AWARENESS</small><strong>Forward vehicle warning</strong></span><span aria-hidden="true">↗</span></span></button>
+        <button class="video-card reveal" type="button" data-category="road" data-video="media/live_test_videos/Pedestrian%20Safety.mp4" data-title="Pedestrian warning" aria-label="Play pedestrian warning test"><span class="video-art art-pedestrian"><span class="walking-figure" aria-hidden="true">♙</span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 03</span></span><span class="video-meta"><span><small>ROAD AWARENESS</small><strong>Pedestrian warning</strong></span><span aria-hidden="true">↗</span></span></button>
+        <button class="video-card reveal" type="button" data-category="driver" data-video="media/live_test_videos/Driver%20Attention%20Safety.mp4" data-title="Driver attention alert" aria-label="Play driver attention alert test"><span class="video-art art-attention"><span class="face-reticle" aria-hidden="true">◉</span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 04</span></span><span class="video-meta"><span><small>DRIVER MONITORING</small><strong>Driver attention alert</strong></span><span aria-hidden="true">↗</span></span></button>
+        <button class="video-card reveal" type="button" data-category="driver" data-video="media/live_test_videos/Drive%20Drowsiness%20Safety.mp4" data-title="Drowsiness alert" aria-label="Play drowsiness alert test"><span class="video-art art-drowsy"><span class="eye-line" aria-hidden="true">◠</span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 05</span></span><span class="video-meta"><span><small>DRIVER MONITORING</small><strong>Drowsiness alert</strong></span><span aria-hidden="true">↗</span></span></button>
+        <button class="video-card reveal" type="button" data-category="road" data-video="media/live_test_videos/Lane_Detection.mp4" data-title="Lane detection" aria-label="Play lane detection test"><span class="video-art art-lane"><span class="lane-dashes" aria-hidden="true">╱ &nbsp; ╲</span><span class="video-play" aria-hidden="true">▶</span><span class="clip-time">LIVE TEST 06</span></span><span class="video-meta"><span><small>ROAD AWARENESS · IN REFINEMENT</small><strong>Lane detection</strong></span><span aria-hidden="true">↗</span></span></button>
+      </div><p class="media-note">Prototype demonstrations. Alerts and predictions are assistive information and do not replace attentive driving.</p></div></section>
+
+      <section class="build-showcase section shell" id="behind-the-build" aria-labelledby="build-title">
+        <div class="section-kicker reveal">
+          <span>05</span>
+          <span>BEHIND THE BUILD</span>
+        </div>
+      
+        <div class="build-showcase-intro reveal">
+          <h2 id="build-title">How WheelBuddy works</h2>
+          <p>
+            WheelBuddy connects time-aware route predictions with live road and driver
+            monitoring. FastAPI serves the crime and drowsiness models, while Core ML
+            and Apple Vision process camera signals on the iPhone.
+          </p>
+        </div>
+      
+        <div class="build-card-grid">
+          <article class="build-card build-card-data reveal">
+            <span class="build-card-number">01 / CRIME PREDICTION DATA</span>
+            <h3>Crime model and coverage</h3>
+            <p>
+              We trained our crime prediction model using outdoor crime records from
+              the <a href="https://osf.io/zyaqn/" target="_blank" rel="noopener noreferrer">Crime Open Database (CODE)</a>.
+              The selected data covers records from 2016 to 2025 across 11 cities:
+            </p>
+            <ul class="build-city-list" aria-label="Selected cities">
+              <li>Boston</li>
+              <li>Charlotte</li>
+              <li>Detroit</li>
+              <li>Louisville</li>
+              <li>New York</li>
+              <li>Virginia Beach</li>
+              <li>Austin</li>
+              <li>Fort Worth</li>
+              <li>Houston</li>
+              <li>Memphis</li>
+              <li>Nashville</li>
+            </ul>
+          </article>
+      
+          <article class="build-card reveal">
+            <span class="build-card-number">02 / ROUTE SAFETY ANALYSIS</span>
+            <h3>Time-aware route scoring</h3>
+            <p>
+              Google Maps supplies candidate routes and travel times. We identify
+              the areas each route crosses and when the driver is expected to reach
+              them, then request predictions from our crime model through FastAPI.
+            </p>
+            <p>
+              The app combines those predictions into route safety scores, crime
+              category breakdowns, and hourly views.
+            </p>
+            <div class="build-pipeline" aria-label="Route scoring pipeline">
+              <span>Route and ETA from Google Maps API</span>
+              <span>Per-route area (as H3 cells) extraction</span>
+              <span>Risk estimate using crime prediction model</span>
+              <span>Per-route safety scoring</span>
+            </div>
+          </article>
+      
+          <article class="build-card reveal">
+            <span class="build-card-number">03 / ON-DEVICE VISION</span>
+            <h3>Two cameras, one driving view</h3>
+            <p>
+              The iPhone runs its front and rear cameras simultaneously. Core ML
+              identifies vehicles and pedestrians in road footage, while Apple
+              Vision estimates the driver's head orientation for looking-away alerts.
+            </p>
+            <p>
+              A ResNet-18-based lane model trained on the CurvedLanes dataset also runs through Core ML. Improving lane
+              detection across roads and lighting conditions remains an active focus.
+            </p>
+          </article>
+      
+          <article class="build-card reveal">
+            <span class="build-card-number">04 / DROWSINESS</span>
+            <h3>Drowsiness detection over time</h3>
+            <p>
+              We trained a custom temporal model using the
+              <a href="https://dmd.vicomtech.org/" target="_blank" rel="noopener noreferrer">Driver Monitoring Dataset (DMD)</a>.
+              WheelBuddy extracts eye and facial measurements over time and sends
+              them to the model through an inference API.
+            </p>
+            <p>
+              Sustained eye closure triggers visual and audio warnings, bringing
+              the model's output into the live driving experience.
+            </p>
+          </article>
+        </div>
+      </section>
+
+    <section class="next"><div class="shell next-grid"><div class="reveal"><p class="eyebrow">WHERE WE GO FROM HERE</p><h2>Good journeys<br>are <em>never finished.</em></h2></div><div class="next-copy reveal"><p>Our real-world tests have been encouraging. Next, we’re improving lane detection across more roads and lighting conditions. Additionally, for stronger inattention detection, want to use gaze direction estimation instead of head orientation.</p><p>With broader testing and refinement, our goal is to bring WheelBuddy to the App Store.</p><a class="button button-outline" href="https://github.com/mazid-rafee/WheelBuddy" target="_blank" rel="noopener noreferrer">Explore the project on GitHub <span aria-hidden="true">↗</span></a></div></div></section>
+  </main>
+
+  <footer class="site-footer"><div class="shell footer-main"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M7 23.5 10.1 16a4 4 0 0 1 3.7-2.5h12.4a4 4 0 0 1 3.7 2.5l3.1 7.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M7.5 23h25v6.5a2 2 0 0 1-2 2h-21a2 2 0 0 1-2-2V23Z" stroke="currentColor" stroke-width="2.6"/><path d="M13 27.2h.1m13.8 0h.1" stroke="currentColor" stroke-width="3.8" stroke-linecap="round"/><path d="M17 18.5h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span><span>Wheel<span class="brand-light">Buddy</span></span></a><span>A little more confidence, every mile.</span><a href="#top">Back to top ↑</a></div><div class="shell footer-bottom"><span>© <span id="year">2026</span> WheelBuddy · Built for ShellHacks 2026</span><span>Prototype · Drive attentively and follow local laws.</span></div></footer>
+
+  <dialog class="video-dialog" id="video-dialog" aria-labelledby="dialog-title"><div class="dialog-head"><span id="dialog-title">Live test</span><button class="dialog-close" type="button" aria-label="Close video">×</button></div><video id="dialog-video" controls playsinline preload="none"></video><p id="video-error" class="video-error" hidden>We couldn't load this clip. Confirm the file is present in <code>website/media/live_test_videos/</code> with the exact filename shown in the setup guide.</p></dialog>
+</body>
+</html>
